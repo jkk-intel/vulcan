@@ -7,6 +7,10 @@ fi
 
 cd "$SHARED_DIR"
 
-if [[ ! -d "vulcan-git" ]]; then
-    git clone https://github.com/jkk-intel/vulcan.git vulcan-git
+if [[ ! -d "workflowlib" ]]; then
+    {
+        git clone https://github.com/jkk-intel/vulcan.git workflowlib    
+    } >/dev/null 2>&1
 fi
+
+printenv
