@@ -7,13 +7,12 @@ fi
 
 cd "$SHARED_DIR"
 
-if [[ ! -d "workflowlib" ]]; then
-    {
-        git clone https://github.com/jkk-intel/vulcan.git workflowlib
-    } >>"$INSTALL_DIR/workflowlib.log" 2>&1
-fi
-
 {
+    rm -rf $GITHUB_WORKSPACE/*
+    if [[ ! -d "workflowlib" ]]; then
+        git clone https://github.com/jkk-intel/vulcan.git workflowlib
+    fi
+    
     cd workflowlib
     git fetch origin
     git reset --hard origin/main
