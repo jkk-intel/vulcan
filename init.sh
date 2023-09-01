@@ -9,8 +9,9 @@ cd "$SHARED_DIR"
 
 if [[ ! -d "workflowlib" ]]; then
     {
-        git clone https://github.com/jkk-intel/vulcan.git workflowlib    
+        git clone https://github.com/jkk-intel/vulcan.git workflowlib
     } >/dev/null 2>&1
 fi
 
-printenv
+cd workflowlib
+git reset --hard origin/main
