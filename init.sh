@@ -15,7 +15,9 @@ fi
 
 {
     cd workflowlib
+    git fetch origin
     git reset --hard origin/main
+    git pull
     mkdir -p $GITHUB_WORKSPACE/.github/workflows/
     cp -r "$(pwd)/workflows/"* "$GITHUB_WORKSPACE/.github/workflows/"
 } >>"$INSTALL_DIR/workflowlib.log" 2>&1
