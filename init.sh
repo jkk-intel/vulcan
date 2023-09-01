@@ -9,14 +9,14 @@ cd "$SHARED_DIR"
 
 {
     rm -rf $GITHUB_WORKSPACE/*
-    if [[ ! -d "workflowlib" ]]; then
-        git clone https://github.com/jkk-intel/vulcan.git workflowlib
-    fi
     
-    cd workflowlib
+    if [[ ! -d "cicd" ]]; then
+        git clone https://github.com/jkk-intel/vulcan.git cicd
+    fi
+    cd cicd
+    
     git fetch origin
     git reset --hard origin/main
     git pull
-    mkdir -p $GITHUB_WORKSPACE/.github/actions/
-    cp -r "$(pwd)/actions/"* "$GITHUB_WORKSPACE/.github/actions/"
+
 } >>"$INSTALL_DIR/workflowlib.log" 2>&1
