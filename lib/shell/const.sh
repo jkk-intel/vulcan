@@ -1,7 +1,4 @@
 #!/bin/bash
-if [[ -z "$SCRIPT_DIR" ]]; then
-    SCRIPT_DIR="$(cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)"
-fi
 
 # Provide ATHENA_ROOT if it's not provided by environment
 ATHENA_ROOT="${ATHENA_ROOT:=.}"

@@ -1,6 +1,4 @@
 #!/bin/bash
-SCRIPT_DIR="$(cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)"
-
 
 if [[ -z "$SHARED_DIR" ]]; then
     echo "SHARED_DIR envinronment variable must be defined"

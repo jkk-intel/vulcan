@@ -1,24 +1,18 @@
 #/bin/bash
 set -e
-SCRIPT_DIR=$(cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)
-source "$SCRIPT_DIR/../constants.sh";
-source "$SCRIPT_DIR/../bashlib.sh"
+source "$(__dir)/../bashlib.sh"
 
 import argp
-argp param --requirements-file REQUIREMENTS_FILE "default:hermes/requirements.txt"
-argp param --venv-inventory-path VENV_INVENTORY_PATH "default:$RUNNER_TOOL_CACHE/python_venvs"
-argp param --pip-cache-path PIP_CACHE_PATH
-argp param --evict-older-than EVICT_OLDER_THAN
+argp param -v --python-version PYTHON_VERSION "default:3.11"
+argp param -r --requirements-file REQUIREMENTS_FILE "default:hermes/requirements.txt"
+argp param -p --venv-inventory-path VENV_INVENTORY_PATH "default:$HOME/.python_venvs"
+argp param -c --pip-cache-path PIP_CACHE_PATH
+argp param -e --evict-older-than EVICT_OLDER_THAN
 eval "$(argp parse "$@")"
 
 if [[ -z "$REQUIREMENTS_FILE" ]]; then
     echo -e "${ERRORC}param --requirements-file must be provided ${NC}" 1>&2
     exit 1
-fi
-
-if [[ -z "$VENV_INVENTORY_PATH" ]]; then
-    VENV_INVENTORY_PATH="$HOME/.pyenv"
-    echo -e "${ERRORC}param --venv-inventory-path not given; using $HOME/.py_venv as install dir${NC}" 1>&2
 fi
 
 if [[ -n $(mkdir -p "$VENV_INVENTORY_PATH" || echo "CANNOT_INITIALIZE_VENV_FOLDER") ]]; then
@@ -42,8 +36,10 @@ if [[ -d "$VENV_FOLDER" ]] && [[ -f "$VENV_FOLDER/last_used" ]]; then
     exit 0
 fi
 
-# initialize proxy variables
-eval "$(proxy_env_init)"
+# prepare python
+{
+    pyenv install --skip-existing "$PYTHON_VERSION"
+}
 
 # install venv at location
 {
