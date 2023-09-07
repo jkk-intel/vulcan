@@ -36,10 +36,14 @@ if [[ -d "$VENV_FOLDER" ]] && [[ -f "$VENV_FOLDER/last_used" ]]; then
     exit 0
 fi
 
-# prepare python
+# prepare python base
 {
+    rm -rf "$VENV_FOLDER"
+    mkdir -p "$VENV_FOLDER"
+    cd "$VENV_FOLDER"
     pyenv install --skip-existing "$PYTHON_VERSION"
-}
+    pyenv virtualenv "$PYTHON_VERSION" "$(basename "$VENV_FOLDER")"
+} 1>&2 # redirect all stdout to stderr
 
 # install venv at location
 {
@@ -48,9 +52,6 @@ fi
     export TMPDIR="$VENV_INVENTORY_PATH/tmp"
     mkdir -p "$PIP_CACHE_DIR" "$TMPDIR"
     
-    # create fresh venv and make it available by sourcing it
-    rm -rf "$VENV_FOLDER"
-    python3 -m venv "$VENV_FOLDER"
     source "$VENV_FOLDER/bin/activate"
     
     # get up-to-date wheel & bdist
