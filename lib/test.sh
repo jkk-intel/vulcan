@@ -10,6 +10,7 @@ export HTTPS_PROXY="$CONST_DOCKER_HTTPS_PROXY"
 export NO_PROXY="$CONST_DOCKER_NO_PROXY"
 
 printenv
+whoami
 
 bash "$(__dir)/shell/toolchain/venv/pyenv.sh" \
     -r "$(__dir)/shell/toolchain/venv/requirements.txt"
