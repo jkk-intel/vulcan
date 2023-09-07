@@ -22,9 +22,3 @@ cd "$SHARED_DIR"
     git pull
 
 } >>"$INSTALL_DIR/workflowlib.log" 2>&1
-
-echo '#!/bin/bash
-set -e
-' | sudo tee /bin/docker-build >/dev/null
-sudo chmod +x /bin/docker-build
-
