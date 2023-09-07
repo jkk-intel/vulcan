@@ -11,6 +11,7 @@ export NO_PROXY="$CONST_DOCKER_NO_PROXY"
 
 printenv
 whoami
+source /home/builder/.bashrc
 
 bash "$(__dir)/shell/toolchain/venv/pyenv.sh" \
     -r "$(__dir)/shell/toolchain/venv/requirements.txt"
