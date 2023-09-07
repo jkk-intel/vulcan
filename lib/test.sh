@@ -9,7 +9,8 @@ export HTTP_PROXY="$CONST_DOCKER_HTTP_PROXY"
 export HTTPS_PROXY="$CONST_DOCKER_HTTPS_PROXY"
 export NO_PROXY="$CONST_DOCKER_NO_PROXY"
 
-printenv
+shopt -s expand_aliases
+alias
 
 bash "$(__dir)/shell/toolchain/venv/pyenv.sh" \
     -r "$(__dir)/shell/toolchain/venv/requirements.txt"
