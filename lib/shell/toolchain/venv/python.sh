@@ -54,6 +54,7 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
             echo "Python target version is $PYTHON_RESOLVED_VERSION";
             if grep -q WARNING "$INSTALL_LOG"; then
                 rm -rf "$PYENV_ROOT/versions/$PYTHON_RESOLVED_VERSION"
+                grep ModuleNotFoundError "$INSTALL_LOG"
                 error "Building python from source failed to resolve required ubuntu lib dependencies"
                 return 1
             fi
