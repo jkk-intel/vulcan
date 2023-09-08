@@ -1,6 +1,6 @@
 #!/bin/bash
-
-source "/home/builder/.bashrc_extra"
+set -e
+source "$SHARED_DIR/bashlib.sh"
 
 CONST_DOCKER_HTTP_PROXY="http://proxy-chain.intel.com:911"
 CONST_DOCKER_HTTPS_PROXY="http://proxy-chain.intel.com:911"
