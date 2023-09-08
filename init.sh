@@ -22,10 +22,13 @@ cd "$SHARED_DIR"
     if [[ ! -d "cicd" ]]; then
         git clone https://github.com/jkk-intel/vulcan.git cicd
     fi
-    cd cicd
     
-    git fetch origin
-    git reset --hard origin/main
-    git pull
+    cd cicd
+    {
+        git fetch origin
+        git reset --hard origin/main
+        git pull
+    }
+    cd ..
 
 } >>"$INSTALL_DIR/workflowlib.log" 2>&1
