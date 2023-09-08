@@ -67,7 +67,7 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
     # get up-to-date wheel & bdist
     pip install wheel setuptools && \
         python setup.py install && \
-        python setup.py install
+        python setup.py bdist_wheel
     
     # resolve packages
     echo "Installing packages with python, $(pyenv version)"
