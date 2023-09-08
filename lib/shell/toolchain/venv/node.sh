@@ -55,3 +55,30 @@ if [[ -d "$VENV_FOLDER" ]] && [[ -f "$VENV_FOLDER/last_used" ]]; then
     echo "$VENV_FOLDER"
     exit 0
 fi
+
+
+# prepare node base
+{
+    use_nvm
+    nvm install "$NODE_LTS_VERSION"
+    nvm use "$NODE_LTS_VERSION"
+    rm -rf "$VENV_FOLDER"
+    mkdir -p "$VENV_FOLDER"
+    cp $PACKAGE_JSON_FILE "$VENV_FOLDER/"
+} 1>&2 # redirect all stdout to stderr
+
+# install venv at location
+{
+    # prepare cache-dir and tmp-dir used for installation
+    export NPM_CONFIG_CACHE="$NPM_CACHE_PATH"
+    export TMPDIR="$VENV_INVENTORY_PATH/tmp"
+    mkdir -p "$NPM_CACHE_PATH" "$TMPDIR"
+    
+    export NPM_CONFIG_PREFIX="$VENV_FOLDER"
+    npm i --include=dev
+
+} 1>&2 # redirect all stdout to stderr
+
+# echo the prepare venv path and mark last used
+echo "$VENV_FOLDER"
+date +%s > "$VENV_FOLDER/last_used"
