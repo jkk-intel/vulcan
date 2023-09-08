@@ -2,7 +2,7 @@
 set -e
 source "$SHARED_DIR/bashlib.sh"
 
-setup_node -f "$(__dir)/shell/toolchain/venv/package.json"
+setup_node -f "$(__dir)/package.json"
 use_nvm
 npm i -g typescript
 
