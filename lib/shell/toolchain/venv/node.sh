@@ -26,30 +26,18 @@ function get_node_lts_version() {
     echo "$NODE_LATEST_LTS"
 }
 
-function get_node_lts_version() {
-    local NODE_LATEST_LTS_INFO_FILE="$SHARED_DIR/node_lts_info"
-    local NEED_TO_FETCH=
-    if [[ -f "$NODE_LATEST_LTS_INFO_FILE" ]]; then
-        NOW=$(date +%s)
-        $(( NOW - ))
-        {
-            NODE_LATEST_LTS="$(nvm ls-remote | grep 'Latest LTS' | tail -n1 | awk '$1=$1' | cut -f1 -d' ' | sed 's|v||g')"
-        } >/dev/null 2>&1
-    else
-        NEED_TO_FETCH=true
-    fi
-    NODE_LATEST_LTS="$(nvm ls-remote | grep 'Latest LTS' | tail -n1 | awk '$1=$1' | cut -f1 -d' ' | sed 's|v||g')"
-}
+NODE_LTS_VERSION="$(get_node_lts_version)"
 
-argp param -v --version NODE_VERSION "default:$NODE_LATEST_LTS"
+import argp
+argp param -v --version NODE_VERSION "default:$NODE_LTS_VERSION"
 argp param -f --package-json-file PACKAGE_JSON_FILE "default:package.json"
 argp param -p --venv-inventory-path VENV_INVENTORY_PATH "default:$SHARED_DIR/node_venvs"
 argp param -c --npm-cache-path NPM_CACHE_PATH
 argp param -e --evict-older-than EVICT_OLDER_THAN
+eval "$(argp parse "$@")"
 
-if [[ -z "$REQUIREMENTS_FILE" ]]; then
-    echo -e "${ERRORC}param --requirements-file must be provided ${NC}" 1>&2
-    exit 1
+if [[ -z "$PACKAGE_JSON_FILE" ]]; then
+    error "param --package-json-file must be provided"
 fi
 
 if [[ -z "$NPM_CACHE_PATH" ]]; then

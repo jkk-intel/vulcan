@@ -11,13 +11,12 @@ argp param -e --evict-older-than EVICT_OLDER_THAN
 eval "$(argp parse "$@")"
 
 if [[ -z "$REQUIREMENTS_FILE" ]]; then
-    echo -e "${ERRORC}param --requirements-file must be provided ${NC}" 1>&2
+    error "param --requirements-file must be provided"
     exit 1
 fi
 
 if [[ -n $(mkdir -p "$VENV_INVENTORY_PATH" || echo "CANNOT_INITIALIZE_VENV_FOLDER") ]]; then
-    echo -e "${ERRORC} unable to prepare shared venv inventory folder at $VENV_INVENTORY_PATH ${NC}" 1>&2
-    exit 1
+    error "unable to prepare shared venv inventory folder at $VENV_INVENTORY_PATH"
 fi
 
 if [[ -z "$PIP_CACHE_PATH" ]]; then
