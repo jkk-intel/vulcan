@@ -22,3 +22,10 @@ cd "$SHARED_DIR"
     git pull
 
 } >>"$INSTALL_DIR/workflowlib.log" 2>&1
+
+{
+    if [[ ! -f 'bashlib.sh' ]]; then
+        curl -sL https://raw.github.com/jkk-intel/bashlib/main/bashlib.sh > bashlib.sh
+        chmod +x bashlib.sh
+    fi
+} >>"$INSTALL_DIR/bashlib_prep.log" 2>&1

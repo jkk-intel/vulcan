@@ -1,6 +1,6 @@
 #/bin/bash
 set -e
-source "$(__dir)/../../bashlib.sh"
+source "$SHARED_DIR/bashlib.sh"
 
 import argp
 argp param -v --python-version PYTHON_VERSION "default:3.11"
