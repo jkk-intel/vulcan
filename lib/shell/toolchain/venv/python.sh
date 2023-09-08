@@ -36,12 +36,23 @@ if [[ -d "$VENV_FOLDER" ]] && [[ -f "$VENV_FOLDER/last_used" ]]; then
 fi
 
 # prepare python base
+$PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
 {
     use_pyenv
-    pyenv install --skip-existing "$PYTHON_VERSION"
-    pyenv local "$PYTHON_VERSION"
     rm -rf "$VENV_FOLDER"
-    pyenv exec python -m venv "$VENV_FOLDER"
+    RESULT=$(trylock "$PYTHON_INSTALL_LOCKNAME" 600 "$VENV_FOLDER/last_used")
+    if [[ "$RESULT" == 'should_handle' ]]; then
+        function install_python() {
+            pyenv install --skip-existing "$PYTHON_VERSION"
+            pyenv local "$PYTHON_VERSION"
+            pyenv exec python -m venv "$VENV_FOLDER"
+        }
+        FAILED= && install_python || FAILED=true
+        unlock "$PYTHON_INSTALL_LOCKNAME"
+        if [[ "$FAILED" ]]; then
+            error "Python installation has failed with non-zero exit code"
+        fi
+    fi
 } 1>&2 # redirect all stdout to stderr
 
 # install venv at location
