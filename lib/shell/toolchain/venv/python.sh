@@ -46,13 +46,14 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
             failfast
             mkdir -p "$SHARED_DIR/tmp"
             local INSTALL_LOG="$SHARED_DIR/tmp/install.$PYTHON_VERSION.$REQUIREMENTS_FILE_SHASUM.log"
+            export PYTHON_BUILD_CACHE_PATH="$SHARED_DIR/pyenv_cache"
             pyenv install --skip-existing "$PYTHON_VERSION" 2>&1 | tee "$INSTALL_LOG"
             local VERSION_LINE="$(grep "Installing Python-" "$INSTALL_LOG")" ; local VERSION_LINE_SPLIT=
             str_split "$VERSION_LINE" --delim '-' --into VERSION_LINE_SPLIT
             local PYTHON_RESOLVED_VERSION=$(echo "${VERSION_LINE_SPLIT[1]}" | head -c -4)
             echo "Python target version is $PYTHON_RESOLVED_VERSION";
             if grep -q WARNING "$INSTALL_LOG"; then
-                grep -q WARNING "$INSTALL_LOG"
+                rm -rf "$PYENV_ROOT/versions/$PYTHON_RESOLVED_VERSION"
                 error "Building python from source failed to resolve required ubuntu lib dependencies"
                 return 1
             fi
