@@ -74,6 +74,7 @@ fi
     export TMPDIR="$VENV_INVENTORY_PATH/tmp"
     mkdir -p "$NPM_CACHE_PATH" "$TMPDIR"
     
+    cd "$VENV_FOLDER"
     export NPM_CONFIG_PREFIX="$VENV_FOLDER"
     npm i --include=dev
 
