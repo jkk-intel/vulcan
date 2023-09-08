@@ -76,7 +76,7 @@ fi
     cd "$VENV_FOLDER"
     export NPM_CONFIG_PREFIX="$VENV_FOLDER"
     echo "NPM_CONFIG_PREFIX=$NPM_CONFIG_PREFIX"
-    echo "installing package with node v$(node -v) (npm v$(npm -v))"
+    echo "Installing packages with node $(node -v) (npm v$(npm -v))"
     npm i --include=dev
 
 } 1>&2 # redirect all stdout to stderr

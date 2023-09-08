@@ -2,5 +2,8 @@
     "name": "test",
     "dependencies": {
         "semver": "7.5.4"
+    },
+    "devDependencies": {
+        "typescript": "5.2.2"
     }
 }
