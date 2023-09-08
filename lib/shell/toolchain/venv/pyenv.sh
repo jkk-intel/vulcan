@@ -1,9 +1,6 @@
 #/bin/bash
 set -e
-source "$(__dir)/../bashlib.sh"
-
-echo "yolo"
-exit 0
+source "$(__dir)/../../bashlib.sh"
 
 import argp
 argp param -v --python-version PYTHON_VERSION "default:3.11"
