@@ -38,11 +38,10 @@ fi
 
 # prepare python base
 {
-    rm -rf "$VENV_FOLDER"
-    mkdir -p "$VENV_FOLDER"
-    cd "$VENV_FOLDER/.."
     pyenv install --skip-existing "$PYTHON_VERSION"
-    pyenv virtualenv "$PYTHON_VERSION" "$(basename "$VENV_FOLDER")"
+    pyenv local "$PYTHON_VERSION"
+    rm -rf "$VENV_FOLDER"
+    pyenv exec python -m venv "$VENV_FOLDER"
 } 1>&2 # redirect all stdout to stderr
 
 # install venv at location
