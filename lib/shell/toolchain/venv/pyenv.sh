@@ -3,9 +3,9 @@ set -e
 source "$SHARED_DIR/bashlib.sh"
 
 import argp
-argp param -v --python-version PYTHON_VERSION "default:3.11"
-argp param -r --requirements-file REQUIREMENTS_FILE "default:hermes/requirements.txt"
-argp param -p --venv-inventory-path VENV_INVENTORY_PATH "default:$HOME/.python_venvs"
+argp param -v --version PYTHON_VERSION "default:3.11"
+argp param -r --requirements-file REQUIREMENTS_FILE "default:requirements.txt"
+argp param -p --venv-inventory-path VENV_INVENTORY_PATH "default:$SHARED_DIR/.python_venvs"
 argp param -c --pip-cache-path PIP_CACHE_PATH
 argp param -e --evict-older-than EVICT_OLDER_THAN
 eval "$(argp parse "$@")"

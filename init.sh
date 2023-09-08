@@ -15,9 +15,6 @@ cd "$SHARED_DIR"
 } >>"$INSTALL_DIR/bashlib_prep.log" 2>&1
 
 {
-    if [[ -n "$GITHUB_WORKSPACE" ]]; then
-        rm -rf "$GITHUB_WORKSPACE/"*
-    fi
     
     if [[ ! -d "cicd" ]]; then
         git clone https://github.com/jkk-intel/vulcan.git cicd
@@ -32,3 +29,8 @@ cd "$SHARED_DIR"
     cd ..
 
 } >>"$INSTALL_DIR/workflowlib.log" 2>&1
+
+if [[ -n "$GITHUB_WORKSPACE" ]]; then
+    rm -rf "$GITHUB_WORKSPACE/"*
+    echo "cleaned up workspace ($GITHUB_WORKSPACE)"
+fi
