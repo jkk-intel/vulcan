@@ -59,6 +59,13 @@ fi
         python setup.py bdist_wheel
     
     # resolve packages
+    echo "Installing packages with python, $(pyenv version)"
+    echo "$(pip -V)"
+    echo ""
+    echo "Contents of $REQUIREMENTS_FILE:"
+    cat "$REQUIREMENTS_FILE"
+    echo ""
+    echo ""
     pip install -r "$REQUIREMENTS_FILE"
 
 } 1>&2 # redirect all stdout to stderr
