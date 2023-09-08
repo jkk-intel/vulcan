@@ -43,6 +43,6 @@ echo '
 alias setup_node='"'"' bash $SHARED_DIR/cicd/lib/shell/toolchain/venv/node.sh '"'"'
 alias setup_python='"'"' bash $SHARED_DIR/cicd/lib/shell/toolchain/venv/python.sh '"'"'
 
-' | tee -a /home/builder/.bashrc_extra >/dev/null
-} >/dev/null 2>&1 || true
+' | tee -a /home/builder/.bashrc_extra >/dev/null || true
+} >/dev/null 2>&1
 fi
