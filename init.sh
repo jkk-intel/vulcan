@@ -8,7 +8,9 @@ fi
 cd "$SHARED_DIR"
 
 {
-    rm -rf $GITHUB_WORKSPACE/*
+    if [[ -n "$GITHUB_WORKSPACE" ]]; then
+        rm -rf "$GITHUB_WORKSPACE/"*
+    fi
     
     if [[ ! -d "cicd" ]]; then
         git clone https://github.com/jkk-intel/vulcan.git cicd
