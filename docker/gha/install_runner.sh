@@ -34,7 +34,7 @@ cp -r $SHARED_DIR/cicd/lib* .github/lib/
 sudo chmod +x /bin/load-cicd-lib
 
 
-SCRIPT_DIR="cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd"
+SCRIPT_DIR=$(cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)
 bash "$SCRIPT_DIR/install_runner_additional.sh"
 
 
