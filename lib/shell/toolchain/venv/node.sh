@@ -65,6 +65,7 @@ fi
     if [[ -z "$(command -v nvm)" ]]; then
         (
             HOME="$SHARED_DIR" \
+            mkdir -p "$NVM_DIR"
             wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v$NVM_VERSION/install.sh | bash
         )
     fi
