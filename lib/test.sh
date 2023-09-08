@@ -9,5 +9,5 @@ export HTTP_PROXY="$CONST_DOCKER_HTTP_PROXY"
 export HTTPS_PROXY="$CONST_DOCKER_HTTPS_PROXY"
 export NO_PROXY="$CONST_DOCKER_NO_PROXY"
 
-bash "$(__dir)/shell/toolchain/venv/pyenv.sh" \
-    -r "$(__dir)/shell/toolchain/venv/requirements.txt"
+bash "$(__dir)/shell/toolchain/venv/node.sh" \
+    -f "$(__dir)/shell/toolchain/venv/package.json"

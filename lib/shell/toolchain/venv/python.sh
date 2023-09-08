@@ -4,8 +4,8 @@ source "$SHARED_DIR/bashlib.sh"
 
 import argp
 argp param -v --version PYTHON_VERSION "default:3.11"
-argp param -r --requirements-file REQUIREMENTS_FILE "default:requirements.txt"
-argp param -p --venv-inventory-path VENV_INVENTORY_PATH "default:$SHARED_DIR/.python_venvs"
+argp param -f --requirements-file REQUIREMENTS_FILE "default:requirements.txt"
+argp param -p --venv-inventory-path VENV_INVENTORY_PATH "default:$SHARED_DIR/python_venvs"
 argp param -c --pip-cache-path PIP_CACHE_PATH
 argp param -e --evict-older-than EVICT_OLDER_THAN
 eval "$(argp parse "$@")"
@@ -38,6 +38,7 @@ fi
 
 # prepare python base
 {
+    use_pyenv
     pyenv install --skip-existing "$PYTHON_VERSION"
     pyenv local "$PYTHON_VERSION"
     rm -rf "$VENV_FOLDER"
