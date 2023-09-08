@@ -55,8 +55,8 @@ fi
     
     # get up-to-date wheel & bdist
     pip install wheel && \
-        python setup.py install && \
-        python setup.py bdist_wheel
+        python setup.py bdist_wheel && \
+        python setup.py install
     
     # resolve packages
     echo "Installing packages with python, $(pyenv version)"
