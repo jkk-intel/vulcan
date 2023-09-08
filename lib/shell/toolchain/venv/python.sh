@@ -41,6 +41,12 @@ fi
 PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
 {
     use_pyenv
+    if [[ -z "$(command -v pyenv)" ]]; then
+        (
+            HOME="$SHARED_DIR" \
+            curl -fkL https://github.com/pyenv/pyenv-installer/raw/master/bin/pyenv-installer | bash
+        )
+    fi
     rm -rf "$VENV_FOLDER"
     RESULT=$(trylock "$PYTHON_INSTALL_LOCKNAME" 600 "$VENV_FOLDER/last_used")
     if [[ "$RESULT" == 'should_handle' ]]; then
