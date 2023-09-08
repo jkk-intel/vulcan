@@ -46,7 +46,7 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
             failfast
             mkdir -p "$SHARED_DIR/tmp"
             local INSTALL_LOG="$SHARED_DIR/tmp/install.$PYTHON_VERSION.$REQUIREMENTS_FILE_SHASUM.log"
-            pyenv install --skip-existing "$PYTHON_VERSION" | tee "$INSTALL_LOG"
+            pyenv install --skip-existing "$PYTHON_VERSION" 2>&1 | tee "$INSTALL_LOG"
             if grep -q WARNING "$INSTALL_LOG"; then
                 grep -q WARNING "$INSTALL_LOG"
                 error "Building python from source failed to resolve required ubuntu lib dependencies"
