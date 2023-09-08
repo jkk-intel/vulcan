@@ -61,7 +61,6 @@ fi
 {
     use_nvm
     nvm install "$NODE_LTS_VERSION"
-    nvm use "$NODE_LTS_VERSION"
     rm -rf "$VENV_FOLDER"
     mkdir -p "$VENV_FOLDER"
     cp $PACKAGE_JSON_FILE "$VENV_FOLDER/"
@@ -76,6 +75,8 @@ fi
     
     cd "$VENV_FOLDER"
     export NPM_CONFIG_PREFIX="$VENV_FOLDER"
+    echo "NPM_CONFIG_PREFIX=$NPM_CONFIG_PREFIX"
+    echo "installing package with node v$(node -v) (npm v$(npm -v))"
     npm i --include=dev
 
 } 1>&2 # redirect all stdout to stderr
