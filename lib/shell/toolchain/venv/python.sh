@@ -52,7 +52,9 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
             str_split "$VERSION_LINE" --delim '-' --into VERSION_LINE_SPLIT
             local PYTHON_RESOLVED_VERSION=$(echo "${VERSION_LINE_SPLIT[1]}" | head -c -4)
             if grep -q ModuleNotFoundError "$INSTALL_LOG"; then
-                rm -rf "$PYENV_ROOT/versions/$PYTHON_RESOLVED_VERSION"
+                local PYTHON_INSTALL_DIR="$PYENV_ROOT/versions/$PYTHON_RESOLVED_VERSION"
+                echo "Removing $PYTHON_INSTALL_DIR"
+                rm -rf "$PYTHON_INSTALL_DIR"
                 grep ModuleNotFoundError "$INSTALL_LOG"
                 error "Building python from source failed to resolve required ubuntu lib dependencies"
                 return 1
