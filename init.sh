@@ -36,11 +36,13 @@ if [[ -n "$GITHUB_WORKSPACE" ]]; then
 fi
 
 if ! grep -q '# vulcan tools' "/home/builder/.bashrc"; then
+{
 echo '
 
 # vulcan tools
 alias setup_node='"'"' bash $SHARED_DIR/cicd/lib/shell/toolchain/venv/node.sh '"'"'
 alias setup_python='"'"' bash $SHARED_DIR/cicd/lib/shell/toolchain/venv/python.sh '"'"'
 
-' | tee -a /home/builder/.bashrc_extra >/dev/null    
+' | tee -a /home/builder/.bashrc_extra >/dev/null
+} >/dev/null 2>&1 || true
 fi
