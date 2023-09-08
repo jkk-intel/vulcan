@@ -36,7 +36,7 @@ if [[ -d "$VENV_FOLDER" ]] && [[ -f "$VENV_FOLDER/last_used" ]]; then
 fi
 
 # prepare python base
-$PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
+PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
 {
     use_pyenv
     rm -rf "$VENV_FOLDER"
