@@ -51,7 +51,7 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
             local VERSION_LINE="$(grep "Installing Python-" "$INSTALL_LOG")" ; local VERSION_LINE_SPLIT=
             str_split "$VERSION_LINE" --delim '-' --into VERSION_LINE_SPLIT
             local PYTHON_RESOLVED_VERSION=$(echo "${VERSION_LINE_SPLIT[1]}" | head -c -4)
-            if grep -q ModuleNotFoundError "$INSTALL_LOG"; then
+            if grep -q ' ' "$INSTALL_LOG"; then
                 local PYTHON_INSTALL_DIR="$PYENV_ROOT/versions/$PYTHON_RESOLVED_VERSION"
                 echo "Removing $PYTHON_INSTALL_DIR"
                 rm -rf "$PYTHON_INSTALL_DIR"
