@@ -119,7 +119,7 @@ function bashlib() {
         done
         if [[ -z "$LIB_SOURCE" ]]; then LIB_SOURCE="$BASHLIB_LIB_DEFAULT"; fi
         for PKG_NAME_FULL in "${PACKAGES[@]}"; do
-            local PKG_INFO=; split "$PKG_NAME_FULL" --delim ':' --into PKG_INFO
+            local PKG_INFO=; str_split "$PKG_NAME_FULL" --delim ':' --into PKG_INFO
             local PKG_NAME="${PKG_INFO[0]}"; local PKG_VER="${PKG_INFO[1]}"; local PKG_BRANCH="${PKG_INFO[2]}"
             PKG_VER="${PKG_VER:="v1.0"}"; PKG_BRANCH="${PKG_BRANCH:="main"}"
             local LIB_DIR="$BASHLIB_HOME/$LIB_SOURCE/$PKG_BRANCH"
