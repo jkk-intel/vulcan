@@ -2,6 +2,9 @@
 set -e
 source "$(__dir)/../bashlib.sh"
 
+echo "yolo"
+exit 0
+
 import argp
 argp param -v --python-version PYTHON_VERSION "default:3.11"
 argp param -r --requirements-file REQUIREMENTS_FILE "default:hermes/requirements.txt"
