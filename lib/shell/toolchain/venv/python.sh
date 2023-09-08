@@ -65,8 +65,8 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
     source "$VENV_FOLDER/bin/activate"
     
     # get up-to-date wheel & bdist
-    pip install wheel && \
-        python setup.py bdist_wheel && \
+    pip install wheel setuptools && \
+        python setup.py install && \
         python setup.py install
     
     # resolve packages
