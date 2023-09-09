@@ -1,5 +1,4 @@
 #/bin/bash
-set -e
 source "$SHARED_DIR/bashlib.sh"
 
 DEFAULT_PYTHON_VERSION="3.11"
