@@ -63,8 +63,7 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
                 echo "Removing $PYTHON_INSTALL_DIR"
                 rm -rf "$PYTHON_INSTALL_DIR"
                 grep ModuleNotFoundError "$INSTALL_LOG"
-                error "Building python from source failed to resolve required ubuntu lib dependencies"
-                eout
+                throw ModuleNotFoundError
             fi
             pyenv local "$PYTHON_VERSION"
             pyenv exec python -m venv "$VENV_FOLDER"
