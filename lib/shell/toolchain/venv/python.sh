@@ -49,7 +49,7 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
     rm -rf "$VENV_FOLDER"
     RESULT=$(trylock "$PYTHON_INSTALL_LOCKNAME" 600 "$VENV_FOLDER/last_used")
     if [[ "$RESULT" == 'should_handle' ]]; then
-        try (
+        try {
             ff
             mkdir -p "$SHARED_DIR/tmp"
             INSTALL_LOG="$SHARED_DIR/tmp/install.$PYTHON_VERSION.$REQUIREMENTS_FILE_SHASUM.log"
@@ -67,7 +67,7 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
             fi
             pyenv local "$PYTHON_VERSION"
             pyenv exec python -m venv "$VENV_FOLDER"
-        ); catch
+        } catch
         unlock "$PYTHON_INSTALL_LOCKNAME"
         if [[ "$e" ]]; then
             echo "$E"
