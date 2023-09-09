@@ -50,27 +50,26 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
     rm -rf "$VENV_FOLDER"
     RESULT=$(trylock "$PYTHON_INSTALL_LOCKNAME" 600 "$VENV_FOLDER/last_used")
     if [[ "$RESULT" == 'should_handle' ]]; then
-        function install_python() {
-            failfast
+        try (
             mkdir -p "$SHARED_DIR/tmp"
+            cat 'dd'
             local INSTALL_LOG="$SHARED_DIR/tmp/install.$PYTHON_VERSION.$REQUIREMENTS_FILE_SHASUM.log"
             export PYTHON_BUILD_CACHE_PATH="$SHARED_DIR/pyenv_cache"
             pyenv install --skip-existing "$PYTHON_VERSION" 2>&1 | tee "$INSTALL_LOG"
             local VERSION_LINE="$(grep "Installing Python-" "$INSTALL_LOG")" ; local VERSION_LINE_SPLIT=
             str_split "$VERSION_LINE" --delim '-' --into VERSION_LINE_SPLIT
             local PYTHON_RESOLVED_VERSION=$(echo "${VERSION_LINE_SPLIT[1]}" | head -c -4)
-            if grep -q ' ' "$INSTALL_LOG"; then
+            if grep -q ModuleNotFoundError "$INSTALL_LOG"; then
                 local PYTHON_INSTALL_DIR="$PYENV_ROOT/versions/$PYTHON_RESOLVED_VERSION"
                 echo "Removing $PYTHON_INSTALL_DIR"
                 rm -rf "$PYTHON_INSTALL_DIR"
                 grep ModuleNotFoundError "$INSTALL_LOG"
                 error "Building python from source failed to resolve required ubuntu lib dependencies"
-                return 1
+                eout
             fi
             pyenv local "$PYTHON_VERSION"
             pyenv exec python -m venv "$VENV_FOLDER"
-        }
-        try (install_python); catch
+        ); catch
         unlock "$PYTHON_INSTALL_LOCKNAME"
         if [[ "$e" ]]; then
             echo "$E"
