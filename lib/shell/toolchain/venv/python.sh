@@ -56,7 +56,7 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
             INSTALL_LOG="$SHARED_DIR/tmp/install.$PYTHON_VERSION.$REQUIREMENTS_FILE_SHASUM.log"
             export PYTHON_BUILD_CACHE_PATH="$SHARED_DIR/pyenv_cache"
             pyenv install --skip-existing "$PYTHON_VERSION" 2>&1 | tee "$INSTALL_LOG"
-            if grep -q ' ' "$INSTALL_LOG"; then
+            if true; then
                 VERSION_LINE="$(grep "Installing Python-" "$INSTALL_LOG")" ; VERSION_LINE_SPLIT=
                 str_split "$VERSION_LINE" --delim '-' --into VERSION_LINE_SPLIT
                 PYTHON_RESOLVED_VERSION=$(echo "${VERSION_LINE_SPLIT[1]}" | head -c -4)
