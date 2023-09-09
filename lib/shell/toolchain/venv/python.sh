@@ -62,7 +62,7 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
                 PYTHON_INSTALL_DIR="$PYENV_ROOT/versions/$PYTHON_RESOLVED_VERSION"
                 echo "Removing $PYTHON_INSTALL_DIR"
                 rm -rf "$PYTHON_INSTALL_DIR"
-                grep ModuleNotFoundError "$INSTALL_LOG"
+                # grep ModuleNotFoundError "$INSTALL_LOG"
                 throw ModuleNotFoundError
             fi
             pyenv local "$PYTHON_VERSION"
