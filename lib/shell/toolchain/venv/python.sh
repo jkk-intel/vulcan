@@ -51,6 +51,7 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
     if [[ "$RESULT" == 'should_handle' ]]; then
         try (
             ff
+            set -x
             mkdir -p "$SHARED_DIR/tmp"
             INSTALL_LOG="$SHARED_DIR/tmp/install.$PYTHON_VERSION.$REQUIREMENTS_FILE_SHASUM.log"
             export PYTHON_BUILD_CACHE_PATH="$SHARED_DIR/pyenv_cache"
