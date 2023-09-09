@@ -73,6 +73,7 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
         try (install_python); catch
         unlock "$PYTHON_INSTALL_LOCKNAME"
         if -n "$e"; then
+            echo "$E"
             error "Python installation has failed with non-zero exit code"
         fi
     fi
