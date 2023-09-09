@@ -1,0 +1,11 @@
+{
+    "name": "vulcan-lib",
+    "dependencies": {
+        "fast-glob": "^3.3.1",
+        "fourq": "^2.0.4",
+        "ts-basis": "^5.2.13"
+    },
+    "devDependencies": {
+        "typescript": "5.2.2"
+    }
+}
