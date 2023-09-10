@@ -13,7 +13,6 @@ eval "$(argp parse "$@")"
 
 if [[ -z "$REQUIREMENTS_FILE" ]]; then
     error "param --requirements-file must be provided"
-    exit 1
 fi
 
 if [[ -n $(mkdir -p "$VENV_INVENTORY_PATH" || echo "CANNOT_INITIALIZE_VENV_FOLDER") ]]; then
