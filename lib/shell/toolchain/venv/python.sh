@@ -49,8 +49,8 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
     rm -rf "$VENV_FOLDER"
     RESULT=$(trylock "$PYTHON_INSTALL_LOCKNAME" 600 "$VENV_FOLDER/last_used")
     if [[ "$RESULT" == 'should_handle' ]]; then
-        try {
-            ff
+        try
+        {
             mkdir -p "$SHARED_DIR/tmp"
             INSTALL_LOG="$SHARED_DIR/tmp/install.$PYTHON_VERSION.$REQUIREMENTS_FILE_SHASUM.log"
             export PYTHON_BUILD_CACHE_PATH="$SHARED_DIR/pyenv_cache"
@@ -67,12 +67,12 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
             fi
             pyenv local "$PYTHON_VERSION"
             pyenv exec python -m venv "$VENV_FOLDER"
-        } catch
-        unlock "$PYTHON_INSTALL_LOCKNAME"
-        if [[ "$e" ]]; then
+        } catch resolved {
+            unlock "$PYTHON_INSTALL_LOCKNAME"
+        } e {
             echo "$E"
             error "Python installation has failed with non-zero exit code"
-        fi
+        }
     fi
 } 1>&2 # redirect all stdout to stderr
 
