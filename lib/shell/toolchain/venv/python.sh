@@ -55,7 +55,7 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
         } catch resolved {
             echo 'sdfsfasfasdf'
         } e {
-            pe
+            se
         }
         # try
         # {
