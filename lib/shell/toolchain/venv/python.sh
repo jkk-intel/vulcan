@@ -68,13 +68,12 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
             fi
             pyenv local "$PYTHON_VERSION"
             pyenv exec python -m venv "$VENV_FOLDER"
-        } catch resolved {
-            unlock "$PYTHON_INSTALL_LOCKNAME" || true
-        } e {
-            echo "$E"
-            error "Python installation has failed with non-zero exit code" || true
-        } finally {
-            echo true
+        } catch e {
+          pe
+        }
+        unlock "$PYTHON_INSTALL_LOCKNAME" || true
+        [[ "$e" ]] && {
+            echo "Python installation has failed with non-zero exit code"
         }
     fi
 } 1>&2 # redirect all stdout to stderr
