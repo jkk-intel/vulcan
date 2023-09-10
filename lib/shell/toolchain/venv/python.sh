@@ -71,6 +71,8 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
         } e {
             echo "$E"
             error "Python installation has failed with non-zero exit code"
+        } finally {
+            echo true
         }
     fi
 } 1>&2 # redirect all stdout to stderr
