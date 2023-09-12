@@ -68,6 +68,7 @@ fi
             mkdir -p "$NVM_DIR"
             wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v$NVM_VERSION/install.sh | bash
         )
+        use_nvm
     fi
     nvm install "$NODE_LTS_VERSION"
     rm -rf "$VENV_FOLDER"
