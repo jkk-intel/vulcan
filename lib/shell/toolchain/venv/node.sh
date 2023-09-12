@@ -5,6 +5,7 @@ source "$SHARED_DIR/bashlib.sh"
 NVM_VERSION="0.39.3"
 
 function prepare_nvm() {
+    tifig;
     use_nvm
     if [[ -z "$(command -v nvm)" ]]; then
         (

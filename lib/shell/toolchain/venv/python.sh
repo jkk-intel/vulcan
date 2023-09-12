@@ -36,6 +36,7 @@ if [[ -d "$VENV_FOLDER" ]] && [[ -f "$VENV_FOLDER/last_used" ]]; then
 fi
 
 function prepare_pyenv() {
+    tifig;
     use_pyenv
     if [[ -z "$(command -v pyenv)" ]]; then
         (
