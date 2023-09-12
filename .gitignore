@@ -31,6 +31,8 @@ local.properties
 # Node.js
 node_modules
 /node_modules
+*.js
+*.js.map
 
 # GitHub Actions
 .github/**/package-lock.json

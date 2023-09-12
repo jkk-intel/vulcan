@@ -1,0 +1,23 @@
+{
+    "compilerOptions": {
+      "target": "ES2017",
+      "module": "CommonJS",
+      "strict": false,
+      "types": ["node"],
+      "esModuleInterop": true,
+      "moduleResolution": "Node",
+      "removeComments": true,
+      "noImplicitThis": true,
+      "resolveJsonModule": true,
+      "strictNullChecks": false,
+      "sourceMap": true,
+    },
+    "include": [
+      "./**/*.ts"
+    ],
+    "exclude": [
+      "node_modules",
+      "**/*._instr.ts",
+      "**/*.spec.ts"
+    ]
+  }

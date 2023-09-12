@@ -1,10 +1,9 @@
 #!/bin/bash
 source "$SHARED_DIR/bashlib.sh"
 
-# bash "$(__dir)/node/build.sh"
-
-setup_python -v 3.11 -f "$(__dir)/shell/toolchain/venv/requirements.txt"
-
-# setup_node -f "$(__dir)/shell/toolchain/venv/package.json"
-
+# setup_python -v 3.11 -f "shell/toolchain/venv/requirements.txt"
+(
+    cd "$(__dir)/node" && setup_node
+    npm run build
+);
 
