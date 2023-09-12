@@ -35,17 +35,21 @@ if [[ -d "$VENV_FOLDER" ]] && [[ -f "$VENV_FOLDER/last_used" ]]; then
     exit 0
 fi
 
-# prepare python base
-PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
-{
+function prepare_pyenv() {
     use_pyenv
     if [[ -z "$(command -v pyenv)" ]]; then
         (
             HOME="$SHARED_DIR" \
             curl -fkL https://github.com/pyenv/pyenv-installer/raw/master/bin/pyenv-installer | bash
         )
-        use_pyenv
     fi
+    use_pyenv
+}
+
+# prepare python base
+PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
+{
+    prepare_pyenv
     rm -rf "$VENV_FOLDER"
     RESULT=$(trylock "$PYTHON_INSTALL_LOCKNAME" 600 "$VENV_FOLDER/last_used")
     if [[ "$RESULT" == 'should_handle' ]]; then

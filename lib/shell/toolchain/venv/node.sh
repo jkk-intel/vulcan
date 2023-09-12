@@ -4,6 +4,18 @@ source "$SHARED_DIR/bashlib.sh"
 
 NVM_VERSION="0.39.3"
 
+function prepare_nvm() {
+    use_nvm
+    if [[ -z "$(command -v nvm)" ]]; then
+        (
+            HOME="$SHARED_DIR" \
+            mkdir -p "$NVM_DIR"
+            wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v$NVM_VERSION/install.sh | bash
+        )
+    fi
+    use_nvm
+}
+
 function get_node_lts_version() {
     local NODE_LATEST_LTS_INFO_FILE="$SHARED_DIR/node_lts_info"
     if [[ -f "$NODE_LATEST_LTS_INFO_FILE" ]]; then
@@ -21,7 +33,7 @@ function get_node_lts_version() {
     fi
     local NODE_LATEST_LTS=
     {
-        use_nvm
+        prepare_nvm
         NODE_LATEST_LTS="$(nvm ls-remote | grep 'Latest LTS' | tail -n1 | awk '$1=$1' | cut -f1 -d' ' | sed 's|v||g')"
         echo "$NODE_LATEST_LTS|$(date +%s)" > "$NODE_LATEST_LTS_INFO_FILE"
     } >/dev/null 2>&1
@@ -61,15 +73,7 @@ fi
 
 # prepare node base
 {
-    use_nvm
-    if [[ -z "$(command -v nvm)" ]]; then
-        (
-            HOME="$SHARED_DIR" \
-            mkdir -p "$NVM_DIR"
-            wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v$NVM_VERSION/install.sh | bash
-        )
-        use_nvm
-    fi
+    prepare_nvm
     nvm install "$NODE_LTS_VERSION"
     rm -rf "$VENV_FOLDER"
     mkdir -p "$VENV_FOLDER"
