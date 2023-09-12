@@ -48,42 +48,30 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
     rm -rf "$VENV_FOLDER"
     RESULT=$(trylock "$PYTHON_INSTALL_LOCKNAME" 600 "$VENV_FOLDER/last_used")
     if [[ "$RESULT" == 'should_handle' ]]; then
-        unlock "$PYTHON_INSTALL_LOCKNAME" || true
+        unlock "$PYTHON_INSTALL_LOCKNAME"
         try
         {
-            throw ModuleNotFoundError
-        } catch resolved {
-            echo 'sdfsfasfasdf'
-        } e {
-            se
+            mkdir -p "$SHARED_DIR/tmp"
+            INSTALL_LOG="$SHARED_DIR/tmp/install.$PYTHON_VERSION.$REQUIREMENTS_FILE_SHASUM.log"
+            export PYTHON_BUILD_CACHE_PATH="$SHARED_DIR/pyenv_cache"
+            pyenv install --skip-existing "$PYTHON_VERSION" 2>&1 | tee "$INSTALL_LOG"
+            if grep -q ' ' "$INSTALL_LOG"; then
+                {
+                    VERSION_LINE="$(grep "Installing Python-" "$INSTALL_LOG")" ; VERSION_LINE_SPLIT=
+                    str_split "$VERSION_LINE" --delim '-' --into VERSION_LINE_SPLIT
+                    PYTHON_RESOLVED_VERSION=$(echo "${VERSION_LINE_SPLIT[1]}" | head -c -4)
+                    PYTHON_INSTALL_DIR="$PYENV_ROOT/versions/$PYTHON_RESOLVED_VERSION"
+                    echo "Removing $PYTHON_INSTALL_DIR"
+                    rm -rf "$PYTHON_INSTALL_DIR"
+                } || true
+                # grep ModuleNotFoundError "$INSTALL_LOG"
+                throw ModuleNotFoundError
+            fi
+            pyenv local "$PYTHON_VERSION"
+            pyenv exec python -m venv "$VENV_FOLDER"
+        } catch e {
+            throw "Python installation has failed with non-zero exit code"
         }
-        # try
-        # {
-        #     mkdir -p "$SHARED_DIR/tmp"
-        #     INSTALL_LOG="$SHARED_DIR/tmp/install.$PYTHON_VERSION.$REQUIREMENTS_FILE_SHASUM.log"
-        #     export PYTHON_BUILD_CACHE_PATH="$SHARED_DIR/pyenv_cache"
-        #     pyenv install --skip-existing "$PYTHON_VERSION" 2>&1 | tee "$INSTALL_LOG"
-        #     if grep -q ' ' "$INSTALL_LOG"; then
-        #         {
-        #             VERSION_LINE="$(grep "Installing Python-" "$INSTALL_LOG")" ; VERSION_LINE_SPLIT=
-        #             str_split "$VERSION_LINE" --delim '-' --into VERSION_LINE_SPLIT
-        #             PYTHON_RESOLVED_VERSION=$(echo "${VERSION_LINE_SPLIT[1]}" | head -c -4)
-        #             PYTHON_INSTALL_DIR="$PYENV_ROOT/versions/$PYTHON_RESOLVED_VERSION"
-        #             echo "Removing $PYTHON_INSTALL_DIR"
-        #             rm -rf "$PYTHON_INSTALL_DIR"
-        #         } || true
-        #         # grep ModuleNotFoundError "$INSTALL_LOG"
-        #         throw ModuleNotFoundError
-        #     fi
-        #     pyenv local "$PYTHON_VERSION"
-        #     pyenv exec python -m venv "$VENV_FOLDER"
-        # } catch e {
-        #   pe
-        # }
-        # unlock "$PYTHON_INSTALL_LOCKNAME" || true
-        # [[ "$e" ]] && {
-        #     echo "Python installation has failed with non-zero exit code"
-        # }
     fi
 } 1>&2 # redirect all stdout to stderr
 
