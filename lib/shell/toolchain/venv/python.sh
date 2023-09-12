@@ -44,6 +44,7 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
             HOME="$SHARED_DIR" \
             curl -fkL https://github.com/pyenv/pyenv-installer/raw/master/bin/pyenv-installer | bash
         )
+        use_pyenv
     fi
     rm -rf "$VENV_FOLDER"
     RESULT=$(trylock "$PYTHON_INSTALL_LOCKNAME" 600 "$VENV_FOLDER/last_used")
