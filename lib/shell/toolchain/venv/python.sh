@@ -67,7 +67,7 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
                 throw ModuleNotFoundError
             fi
             pyenv local "$PYTHON_VERSION"
-            pyenv exec python -m venv "$VENV_FOLDER"
+            pyenv exec python -m venv "$VENV_FOLDER" || echo blocks
         } catch e {
             se
             throw "Python installation has failed with non-zero exit code"
