@@ -55,7 +55,7 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
             INSTALL_LOG="$SHARED_DIR/tmp/install.$PYTHON_VERSION.$REQUIREMENTS_FILE_SHASUM.log"
             export PYTHON_BUILD_CACHE_PATH="$SHARED_DIR/pyenv_cache"
             pyenv install --skip-existing "$PYTHON_VERSION" 2>&1 | tee "$INSTALL_LOG"
-            if grep -q ' ' "$INSTALL_LOG"; then
+            if grep -q ModuleNotFoundError "$INSTALL_LOG"; then
                 {
                     VERSION_LINE="$(grep "Installing Python-" "$INSTALL_LOG")" ; VERSION_LINE_SPLIT=
                     str_split "$VERSION_LINE" --delim '-' --into VERSION_LINE_SPLIT
@@ -64,7 +64,6 @@ PYTHON_INSTALL_LOCKNAME="pyenv-python-install-$PYTHON_VERSION"
                     echo "Removing $PYTHON_INSTALL_DIR"
                     rm -rf "$PYTHON_INSTALL_DIR"
                 } || true
-                # grep ModuleNotFoundError "$INSTALL_LOG"
                 throw ModuleNotFoundError
             fi
             pyenv local "$PYTHON_VERSION"
