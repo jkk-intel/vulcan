@@ -36,9 +36,12 @@ WORKDIR /home/builder
 
 COPY ./install_runner.sh ./install_runner.sh
 COPY ./install_runner_additional.sh ./install_runner_additional.sh
-COPY ./entrypoint.sh ./entrypoint.sh
+COPY ./.bashrc_extra ./.bashrc_extra
+
 COPY ./pre_workflow_script.sh /pre_workflow_script.sh
 COPY ./post_workflow_script.sh /post_workflow_script.sh
+
+COPY ./entrypoint.sh ./entrypoint.sh
 RUN sudo chmod +x ./entrypoint.sh
 
 ENTRYPOINT /home/builder/entrypoint.sh

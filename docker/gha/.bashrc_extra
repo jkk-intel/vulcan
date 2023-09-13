@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# import guard
+[[ -n "$BASHRC_EXTRA_IMPORTED" ]] && return 0
+BASHRC_EXTRA_IMPORTED=1
+
+# alias options
+shopt -s expand_aliases
+
+alias ig=' FLOWCTL_HALTED=1 && set +e '
+alias ige=' FLOWCTL_HALTED=0 && set -e '
+
+alias __dir=' ig; cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd; ige '
+alias __tools=' ig; printf "$SHARED_DIR"; ige '
+
+alias use_nvm=' ig; export NVM_DIR="$SHARED_DIR/.nvm" ; [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"; ige '
+alias use_pyenv=' ig; export PYENV_ROOT="$SHARED_DIR/.pyenv" ; command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"; ige '

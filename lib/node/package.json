@@ -1,5 +1,5 @@
 {
-    "name": "vulcan-nodelib",
+    "name": "builder-nodelib",
     "scripts": {
         "build": "npx tsc && node --enable-source-maps builder/cli v1 build"
     },

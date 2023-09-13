@@ -62,7 +62,7 @@ fi
 # get unique shasum of package.json
 PKG_JSON_FILE_SHASUM="$(shasum -a 256 "$PACKAGE_JSON_FILE" | cut -d' ' -f1)"
 PKG_JSON_FILE_SHASUM="${PKG_JSON_FILE_SHASUM:0:24}"  # 24-byte hex; truncate rest
-VENV_FOLDER="$VENV_INVENTORY_PATH/$PKG_JSON_FILE_SHASUM/lib"
+VENV_FOLDER="$VENV_INVENTORY_PATH/$PKG_JSON_FILE_SHASUM"
 
 if [[ -d "$VENV_FOLDER" ]] && [[ -f "$VENV_FOLDER/last_used" ]]; then
     # detected the same venv existing, just use that
