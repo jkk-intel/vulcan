@@ -31,7 +31,7 @@ cd "$SHARED_DIR"
 } >>"$INSTALL_DIR/workflowlib.log" 2>&1
 
 if [[ -n "$GITHUB_WORKSPACE" ]]; then
-    sudo rm -rf "$GITHUB_WORKSPACE/"*
+    rm -rf "$GITHUB_WORKSPACE"
     echo "cleaned up workspace ($GITHUB_WORKSPACE)"
 fi
 
