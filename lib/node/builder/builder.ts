@@ -121,6 +121,13 @@ export function orderBuildsInGroups(mapArg: ComponentManifestMap) {
             alreadyBuilt[fullname] = compo;
             delete map[fullname];
         }
+        if (!toBeBuiltInThisGroup.length) {
+
+        }
+    }
+    for (const fullname of Object.keys(alreadyBuilt)) {
+        const compo = alreadyBuilt[fullname];
+        if (compo._circular_dep_checker) { delete compo._circular_dep_checker; }
     }
     return totalList;
 }

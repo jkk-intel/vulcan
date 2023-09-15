@@ -18,6 +18,7 @@ export interface ComponentManifest {
             cpu?: number;
             mem?: number;
         };
+        target: string;
     };
     _circular_dep_checker: ComponentManifest[];
 }
