@@ -79,6 +79,9 @@ fi
     rm -rf "$VENV_FOLDER"
     mkdir -p "$VENV_FOLDER"
     cp $PACKAGE_JSON_FILE "$VENV_FOLDER/"
+    if [[ -f "$(dirname "$PACKAGE_JSON_FILE")/.npmrc" ]]; then
+        cp "$(dirname "$PACKAGE_JSON_FILE")/.npmrc" "$VENV_FOLDER/"
+    fi
 } 1>&2 # redirect all stdout to stderr
 
 # install venv at location
