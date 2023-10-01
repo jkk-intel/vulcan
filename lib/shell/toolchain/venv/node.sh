@@ -89,7 +89,7 @@ fi
     mkdir -p "$VENV_FOLDER"
     cp $PACKAGE_JSON_FILE "$VENV_FOLDER/"
     [[ -f "$PKG_JSON_DIR/.npmrc" ]] && \
-        cp "$$PKG_JSON_DIR/.npmrc" "$VENV_FOLDER/"
+        cp "$PKG_JSON_DIR/.npmrc" "$VENV_FOLDER/"
 } 1>&2 # redirect all stdout to stderr
 
 # install venv at location
