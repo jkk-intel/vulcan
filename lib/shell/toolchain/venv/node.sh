@@ -93,7 +93,8 @@ fi
     echo "NPM_CONFIG_PREFIX=$NPM_CONFIG_PREFIX"
     echo "Installing packages with node $(node -v) (npm v$(npm -v))"
     echo "Contents of $PACKAGE_JSON_FILE:"
-    cat "$PACKAGE_JSON_FILE"
+    cat package.json
+    npm config set legacy-peer-deps true || :
     npm i --include=dev
 
 } 1>&2 # redirect all stdout to stderr
