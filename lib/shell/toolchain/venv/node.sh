@@ -61,9 +61,18 @@ if [[ -z "$NPM_CACHE_PATH" ]]; then
 fi
 
 # get unique shasum of package.json
+PKG_JSON_DIR="$(dirname "$PACKAGE_JSON_FILE")"
 PKG_JSON_FILE_SHASUM="$(shasum -a 256 "$PACKAGE_JSON_FILE" | cut -d' ' -f1)"
 PKG_JSON_FILE_SHASUM="${PKG_JSON_FILE_SHASUM:0:24}"  # 24-byte hex; truncate rest
 VENV_FOLDER="$VENV_INVENTORY_PATH/$PKG_JSON_FILE_SHASUM"
+
+if [[ -n "$USE" ]]; then
+    (
+        cd "$PKG_JSON_DIR"
+        rm -rf node_modules || true
+        ln -s "$VENV_FOLDER/node_modules" node_modules
+    ) 1>&2 # redirect all stdout to stderr
+fi
 
 if [[ -d "$VENV_FOLDER" ]] && [[ -f "$VENV_FOLDER/last_used" ]]; then
     # detected the same venv existing, just use that
@@ -71,8 +80,6 @@ if [[ -d "$VENV_FOLDER" ]] && [[ -f "$VENV_FOLDER/last_used" ]]; then
     echo "$VENV_FOLDER"
     exit 0
 fi
-
-PKG_JSON_DIR="$(dirname "$PACKAGE_JSON_FILE")"
 
 # prepare node base
 {
@@ -102,14 +109,6 @@ PKG_JSON_DIR="$(dirname "$PACKAGE_JSON_FILE")"
     npm i --include=dev
 
 } 1>&2 # redirect all stdout to stderr
-
-if [[ -n "$USE" ]]; then
-    (
-        cd "$PKG_JSON_DIR"
-        rm -rf node_modules || true
-        ln -s "$VENV_FOLDER/node_modules" node_modules
-    ) 1>&2 # redirect all stdout to stderr
-fi
 
 # echo the prepare venv path and mark last used
 echo "$VENV_FOLDER"
