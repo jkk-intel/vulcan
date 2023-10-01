@@ -49,6 +49,7 @@ argp param -f --package-json-file PACKAGE_JSON_FILE "default:package.json"
 argp param -p --venv-inventory-path VENV_INVENTORY_PATH "default:$SHARED_DIR/node_venvs"
 argp param -c --npm-cache-path NPM_CACHE_PATH
 argp param -e --evict-older-than EVICT_OLDER_THAN
+argp flag -u --use USE
 eval "$(argp parse "$@")"
 
 if [[ -z "$PACKAGE_JSON_FILE" ]]; then
@@ -71,6 +72,7 @@ if [[ -d "$VENV_FOLDER" ]] && [[ -f "$VENV_FOLDER/last_used" ]]; then
     exit 0
 fi
 
+PKG_JSON_DIR="$(dirname "$PACKAGE_JSON_FILE")"
 
 # prepare node base
 {
@@ -79,9 +81,8 @@ fi
     rm -rf "$VENV_FOLDER"
     mkdir -p "$VENV_FOLDER"
     cp $PACKAGE_JSON_FILE "$VENV_FOLDER/"
-    if [[ -f "$(dirname "$PACKAGE_JSON_FILE")/.npmrc" ]]; then
-        cp "$(dirname "$PACKAGE_JSON_FILE")/.npmrc" "$VENV_FOLDER/"
-    fi
+    [[ -f "$PKG_JSON_DIR/.npmrc" ]] && \
+        cp "$$PKG_JSON_DIR/.npmrc" "$VENV_FOLDER/"
 } 1>&2 # redirect all stdout to stderr
 
 # install venv at location
@@ -101,6 +102,14 @@ fi
     npm i --include=dev
 
 } 1>&2 # redirect all stdout to stderr
+
+if [[ -n "$USE" ]]; then
+    (
+        cd "$PKG_JSON_DIR"
+        rm -rf node_modules || true
+        ln -s "$VENV_FOLDER/node_modules" node_modules
+    ) 1>&2 # redirect all stdout to stderr
+fi
 
 # echo the prepare venv path and mark last used
 echo "$VENV_FOLDER"
