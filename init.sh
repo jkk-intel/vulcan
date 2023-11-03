@@ -48,3 +48,6 @@ alias setup_python='"'"' bash $SHARED_DIR/cicd/lib/shell/toolchain/venv/python.s
 ' | tee -a /home/builder/.bashrc_extra >/dev/null || true
 } >/dev/null 2>&1
 fi
+
+
+bash $SHARED_DIR/cicd/lib/shell/toolchain/venv/python.sh

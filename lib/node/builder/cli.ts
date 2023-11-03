@@ -5,10 +5,9 @@ import { globalRoot } from 'ts-basis';
 const cli = new Command();
 const version = '0.0.1';
 
-cli
-.name('vulcan-build')
-.description(`advanced project components building framework`)
-.version(version);
+cli.name('vulcan-build')
+    .description(`advanced project components building framework`)
+    .version(version);
 
 const v1 = cli.command('v1');
 
