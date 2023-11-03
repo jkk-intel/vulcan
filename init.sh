@@ -49,5 +49,4 @@ alias setup_python='"'"' bash $SHARED_DIR/cicd/lib/shell/toolchain/venv/python.s
 } >/dev/null 2>&1
 fi
 
-
-bash $SHARED_DIR/cicd/lib/shell/toolchain/venv/python.sh
+bash $SHARED_DIR/cicd/lib/shell/toolchain/github-cli/gh.sh
