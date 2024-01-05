@@ -23,6 +23,7 @@ let currentOutputOwner = ''
 export type BuilderCustomOptions = {
     tag?: string,
     ci?: boolean,
+    precommitContext?: string,
     workingDirectory?: string,
     baseBranch?: string,
     headBranch?: string,
@@ -1044,14 +1045,17 @@ export function getActiveBuilderConfig(configChain: BuilderConfigChain) {
 
 export async function resolveBuildEnvironment(config: TypedBuilderConfig, options: BuilderCustomOptions) {
     if (!options) { options = {} }
+    if (!options.ci && !options.precommitContext) {
+        options.precommitContext = 'dev'
+    }
     if (!config.base_branch) {
         config.base_branch = 'main'
     }
-    if (options.baseBranch) {
-        config.base_branch = options.baseBranch
-    }
     if (options.headBranch) {
         config.head_branch = options.headBranch
+    }
+    if (options.baseBranch) {
+        config.base_branch = options.baseBranch
     }
     if (!config.head_branch) {
         const [code, stdout, stderr, e] = await runCommand(`git rev-parse --abbrev-ref HEAD`)    
@@ -1061,11 +1065,26 @@ export async function resolveBuildEnvironment(config: TypedBuilderConfig, option
             config.head_branch = 'main'
         }
     }
-    if (notSet(config.is_postcommit)) {
-        config.is_postcommit = config.base_branch === config.head_branch
+    if (options.precommitContext) {
+        config.is_precommit = true
+        config.is_postcommit = false
+    } else {
+        if (notSet(config.is_precommit)) {
+            config.is_precommit = config.base_branch !== config.head_branch
+        }
+        if (notSet(config.is_postcommit)) {
+            config.is_postcommit = config.base_branch === config.head_branch
+        }
     }
-    if (notSet(config.is_precommit)) {
-        config.is_precommit = config.base_branch !== config.head_branch
+    let warned = false
+    if (!!config.is_postcommit === !!config.is_precommit) {
+        warned = true
+        console.log(colors.yellow(`\nWARNING; 'is_postcommit' and 'is_precommit' `+ 
+                                    `cannot be the same value in 'builder.config.yml'`))
+    }
+    config.is_postcommit = !config.is_precommit
+    if (warned) {
+        console.log(colors.yellow(`WARNING; overriding 'is_postcommit' to ${config.is_postcommit}`))
     }
     return config
 }
