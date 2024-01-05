@@ -23,8 +23,8 @@ v1.command('build')
 .option('--base-branch <baseBranch>', 'base branch for the working branch')
 .option('--no-prebuilt', 'disables build skipping when prebuilt images with the same shasum is detected')
 .option('--no-cache', 'disables docker cache and build all layers')
+.option('--precommit-context <precommitContext>', 'context metadata for precommit (PR) flow')
 .option('--ci', 'whether the current build is during CI flow')
-.option('--precommit-context', 'context metadata for precommit (PR) flow')
 .description(`build components with parameters, v1`)
 .action(async (options: BuilderCustomOptions) => {
     const exit = (code = 0) => setTimeout(() => process.exit(code), 500) as any

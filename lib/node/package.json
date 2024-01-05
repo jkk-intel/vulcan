@@ -1,6 +1,6 @@
 {
     "name": "intel-build",
-    "version": "0.0.23",
+    "version": "0.0.25",
     "scripts": {
         "build": "npx tsc",
         "prepublishOnly": "npm run build"
