@@ -1047,6 +1047,12 @@ export async function resolveBuildEnvironment(config: TypedBuilderConfig, option
     if (!config.base_branch) {
         config.base_branch = 'main'
     }
+    if (options.baseBranch) {
+        config.base_branch = options.baseBranch
+    }
+    if (options.headBranch) {
+        config.head_branch = options.headBranch
+    }
     if (!config.head_branch) {
         const [code, stdout, stderr, e] = await runCommand(`git rev-parse --abbrev-ref HEAD`)    
         if (!e && !stderr && code === 0 && stdout.trim()) {
@@ -1054,12 +1060,6 @@ export async function resolveBuildEnvironment(config: TypedBuilderConfig, option
         } else {
             config.head_branch = 'main'
         }
-    }
-    if (options.baseBranch) {
-        config.base_branch = options.baseBranch
-    }
-    if (options.headBranch) {
-        config.head_branch = options.headBranch
     }
     if (notSet(config.is_postcommit)) {
         config.is_postcommit = config.base_branch === config.head_branch
