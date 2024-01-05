@@ -1,6 +1,5 @@
 import * as http from 'http';
 import Express from 'express';
-const b: RequestInit = null;
 const socketPath = `${process.env.HOME}/.docker/run/docker.sock`;
 const app = Express();
 

@@ -1,0 +1,12 @@
+name: test/subcompo-ness
+src:
+  - test
+  - tests/**
+  - testt/**
+  - test2
+ignore:
+  - node_modules
+
+builder: docker
+docker:
+  dockerfile: Dockerfile

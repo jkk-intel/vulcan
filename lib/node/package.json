@@ -1,9 +1,15 @@
 {
-    "name": "builder-nodelib",
+    "name": "intel-build",
+    "version": "0.0.23",
     "scripts": {
-        "build": "npx tsc && node --enable-source-maps builder/cli v1 build"
+        "build": "npx tsc",
+        "prepublishOnly": "npm run build"
+    },
+    "bin": {
+        "builder": "main.sh"
     },
     "dependencies": {
+        "colors": "^1.4.0",
         "commander": "^11.0.0",
         "express": "^4.18.2",
         "fast-glob": "^3.3.1",

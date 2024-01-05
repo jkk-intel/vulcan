@@ -1,0 +1,11 @@
+name: compo1
+depends_on:
+  - test/subcompo-ness
+src:
+  - compo1_src
+
+builder: docker
+docker:
+  dockerfile: Dockerfile
+
+

@@ -1,0 +1,7 @@
+name: compoN
+src:
+  - ../test
+builder: docker
+prebuild_script: bash prebuild.sh
+docker:
+  context: ../

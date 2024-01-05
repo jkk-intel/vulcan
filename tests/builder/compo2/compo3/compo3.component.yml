@@ -1,0 +1,7 @@
+name: teser/test/compo3
+depends_on: 
+  - compo1
+  - compoN
+builder: docker
+
+

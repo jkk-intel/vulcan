@@ -1,0 +1,19 @@
+type: standard
+base_branch: main
+docker:
+  # remote_builders:
+  #   - builder-1
+  # build_args:
+  #   HTTP_PROXY: some-proxy.com
+  #   HTTPS_PROXY: some-proxy.com
+  #   NO_PROXY: some-proxy.com
+  registry:
+    cache: example-registry.com/cache
+    temp: example-registry.com/cache
+    precommit: example-registry.com/cache
+    postcommit: example-registry.com/cache
+  precommit:
+    publish: ci-only
+  postcommit:
+    publish: ci-only
+    publish_latest: ci-only
