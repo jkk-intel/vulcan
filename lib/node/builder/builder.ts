@@ -24,6 +24,8 @@ export type BuilderCustomOptions = {
     tag?: string,
     ci?: boolean,
     workingDirectory?: string,
+    baseBranch?: string,
+    headBranch?: string,
     prebuilt?: boolean,
     cache?: boolean,
 }
@@ -1040,7 +1042,8 @@ export function getActiveBuilderConfig(configChain: BuilderConfigChain) {
     return activeConfig
 }
 
-export async function resolveBuildEnvironment(config: TypedBuilderConfig) {
+export async function resolveBuildEnvironment(config: TypedBuilderConfig, options: BuilderCustomOptions) {
+    if (!options) { options = {} }
     if (!config.base_branch) {
         config.base_branch = 'main'
     }
@@ -1051,6 +1054,12 @@ export async function resolveBuildEnvironment(config: TypedBuilderConfig) {
         } else {
             config.head_branch = 'main'
         }
+    }
+    if (options.baseBranch) {
+        config.base_branch = options.baseBranch
+    }
+    if (options.headBranch) {
+        config.head_branch = options.headBranch
     }
     if (notSet(config.is_postcommit)) {
         config.is_postcommit = config.base_branch === config.head_branch

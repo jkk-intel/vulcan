@@ -19,6 +19,8 @@ const v1 = cli.command('v1');
 v1.command('build')
 .option('--tag <tag>', 'image tag for the build set (branch name or run number). If not given, the tag is auto-generated')
 .option('--working-directory <workingDirectory>', 'change directory to specified dir before running the build')
+.option('--head-branch <headBranch>', 'working branch name for precommit (precommit)')
+.option('--base-branch <baseBranch>', 'base branch for the working branch (precommit)')
 .option('--no-prebuilt', 'disables build skipping when prebuilt images with the same shasum is detected')
 .option('--no-cache', 'disables docker cache and build all layers')
 .option('--ci', 'whether the current build is during CI flow')
@@ -42,7 +44,7 @@ v1.command('build')
     }
     const configChain = await findBuilderConfig()
     const activeConfig = getActiveBuilderConfig(configChain)
-    await resolveBuildEnvironment(activeConfig)
+    await resolveBuildEnvironment(activeConfig, options)
     activeConfig.start_time = Date.now()
     const [ compoMap, fileErrors ] = await getComponentsMap();
     if (fileErrors) {
