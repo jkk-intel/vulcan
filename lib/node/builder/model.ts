@@ -7,7 +7,7 @@ export interface ComponentManifest {
     fullname?: string;
     manifest_path?: string;
     registry_subdir?: string;
-    unpublished?: boolean;
+    publish?: boolean;
     depends_on?: string[];
     dir?: string;
     src?: string | string[];
@@ -65,25 +65,25 @@ export interface BuilderConfigStandard {
     start_time?: number
     docker?: {
         remote_builders?: string[] 
-        registry?: DockerRegistryInfo
         build_args?: {[argname: string]: string}
-        precommit?: {
-            load?: boolean
-            publish?: boolean | 'ci-only'
-        }
-        postcommit?: {
-            load?: boolean
-            publish?: boolean | 'ci-only'
-            publish_latest?: boolean | 'ci-only'
-        }
+        registry?: DockerRegistryInfo
     }
 }
 
 type DockerRegistryInfo = {
-    postcommit?: string | string[]
-    precommit?: string | string[]
     temp?: string | string[]
     cache?: string | string[]
+    published?: {
+        postcommit?: {
+            publish?: boolean | 'ci-only'
+            target?: string | string[]
+        }
+        precommit?: {
+            publish?: boolean | 'ci-only'
+            publish_latest?: boolean | 'ci-only'
+            target?: string | string[]
+        }
+    }
 }
 
 export interface ComponentManifestMap {

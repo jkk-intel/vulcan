@@ -130,10 +130,10 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
             const shouldPublish = (flag: boolean | "ci-only") => flag === true || (flag === 'ci-only' && options.ci)
 
             if (
-                !compo.unpublished &&
+                compo.publish &&
                 config.is_precommit &&
-                shouldPublish(config.docker?.precommit?.publish) &&
-                stringArray(config.docker?.registry?.precommit).length
+                shouldPublish(config.docker?.registry?.published?.precommit?.publish) &&
+                stringArray(config.docker?.registry?.published?.precommit?.target).length
             ) {
                 const publishPaths = getPrecommitComponentPublishPaths(compo, config)
                 for (const publishPath of publishPaths) {
@@ -144,20 +144,18 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
             }
 
             if (
-                !compo.unpublished &&
+                compo.publish &&
                 config.is_postcommit &&
-                shouldPublish(config.docker?.postcommit?.publish) &&
-                stringArray(config.docker?.registry?.postcommit).length
+                shouldPublish(config.docker?.registry?.published?.postcommit?.publish) &&
+                stringArray(config.docker?.registry?.published?.postcommit?.target).length
             ) {
                 const publishPaths = getPostcommitComponentPublishPaths(compo, config)
-                if (config.docker?.postcommit?.publish) {
-                    for (const publishPath of publishPaths) {
-                        const fullPath = `${publishPath}:${tag}`
-                        cliArgs.push('--tag', fullPath)
-                        allFullImagePaths.push(fullPath)
-                    }
+                for (const publishPath of publishPaths) {
+                    const fullPath = `${publishPath}:${tag}`
+                    cliArgs.push('--tag', fullPath)
+                    allFullImagePaths.push(fullPath)
                 }
-                if (shouldPublish(config.docker?.postcommit?.publish_latest)) {
+                if (shouldPublish(config.docker?.registry?.published?.postcommit?.publish)) {
                     for (const publishPath of publishPaths) {
                         const fullPath = `${publishPath}:latest-postcommit`
                         cliArgs.push('--tag', fullPath)
@@ -948,7 +946,7 @@ function getEphemeralComponentFullpath(compo: ComponentManifest, config: TypedBu
 }
 
 function getPrecommitComponentPublishPaths(compo: ComponentManifest, config: TypedBuilderConfig) {
-    const registries = stringArray(config.docker?.registry?.precommit);
+    const registries = stringArray(config.docker?.registry?.published?.precommit?.target);
     return registries.map(reg => {
         while (reg.endsWith('/')) { reg = reg.slice(0, -1) }
         return `${reg}/${compo.docker.image_name}`
@@ -956,7 +954,7 @@ function getPrecommitComponentPublishPaths(compo: ComponentManifest, config: Typ
 }
 
 function getPostcommitComponentPublishPaths(compo: ComponentManifest, config: TypedBuilderConfig) {
-    const registries = stringArray(config.docker?.registry?.postcommit);
+    const registries = stringArray(config.docker?.registry?.published?.postcommit?.target);
     return registries.map(reg => {
         while (reg.endsWith('/')) { reg = reg.slice(0, -1) }
         return `${reg}/${compo.docker.image_name}`
