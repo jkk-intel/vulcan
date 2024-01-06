@@ -109,6 +109,8 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
     if (compo.builder === 'docker') {
         return promise<boolean>(async resolve => {
             const startTime = Date.now()
+            const streamFile = `build.${compo.name_safe}.log`
+            const logFile = fs.createWriteStream(streamFile)
             let resolved = false
             const tryResolve = (v: boolean) => resolved ? null : (resolved = true) && resolve(v)
 
@@ -223,9 +225,12 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                 const prebuiltExists = prebuiltResult === 0
                 if (prebuiltExists) {
                     rectifyOutputSection()
-                    options.log(`${colors.yellow(`[PREBUILT]`)} ${colors.cyan(compo.fullname)}${colors.gray('@'+compo.hash.slice(1))}` +
-                                    ` has been published before, skipping building.`)
+                    const skipMessage = `${colors.yellow(`[PREBUILT]`)} `+
+                                        `${colors.cyan(compo.fullname)}${colors.gray('@'+compo.hash.slice(1))}` +
+                                        ` has been published before, skipping building.`;
+                    options.log(skipMessage)
                     announcePushes()
+                    logFile.write(`${skipMessage}\n`)
                     return tryResolve(null)
                 }
             }
@@ -256,7 +261,9 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                     const imageRefHead = `${imagePath}:${config.head_branch.replace(/\//g, '__')}`.toLowerCase()
                     cacheFromResolves.push(dockerCacheFromResolve(imageRefBase))
                     cacheFromResolves.push(dockerCacheFromResolve(imageRefHead))
-                    cliArgs.push('--cache-to', `type=registry,ref=${imageRefHead},${defaultCacheToOpts}`.toLowerCase())
+                    if (imageRefHead !== imageRefBase || config.is_postcommit) {
+                        cliArgs.push('--cache-to', `type=registry,ref=${imageRefHead},${defaultCacheToOpts}`.toLowerCase())
+                    }
                 }
                 const cacheLookUpSettleds = await Promise.allSettled(cacheFromResolves)
                 for (const cacheLookUpSettled of cacheLookUpSettleds) {
@@ -276,8 +283,6 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
             const contextDir = compo.docker.context ? pathlib.join(compo.dir, compo.docker.context) : compo.dir
             cliArgs.push(contextDir)
 
-            const streamFile = `build.${compo.name_safe}.log`
-            const logFile = fs.createWriteStream(streamFile);
             logFile.write(`docker buildx build ` + 
                      `${cliArgs.slice(2).map(a => a.startsWith('--') ? a : `${a}\n    `).join(' ')}` +
                      `\n\n`)
