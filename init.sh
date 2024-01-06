@@ -20,13 +20,12 @@ cd "$SHARED_DIR"
         git clone https://github.com/jkk-intel/vulcan.git cicd
     fi
     
-    cd cicd
-    {
+    (
+        cd cicd
         git fetch origin
         git reset --hard origin/main
         git pull
-    }
-    cd ..
+    )
 
 } >>"$INSTALL_DIR/workflowlib.log" 2>&1
 
@@ -37,23 +36,18 @@ if [[ -n "$GITHUB_WORKSPACE" ]]; then
     echo "cleaned up workspace ($GITHUB_WORKSPACE)"
 fi
 
-if ! grep -q '# vulcan tools' "/home/builder/.bashrc"; then
-{
-echo '
-
-# vulcan tools
-alias setup_node='"'"' bash $SHARED_DIR/cicd/lib/shell/toolchain/venv/node.sh '"'"'
-alias setup_python='"'"' bash $SHARED_DIR/cicd/lib/shell/toolchain/venv/python.sh '"'"'
-
-' | tee -a /home/builder/.bashrc_extra >/dev/null || true
-} >/dev/null 2>&1
+BASHRC_EXTRA_PATH="/home/builder/.bashrc_extra"
+BASHRC_EXTRA_REQUIRED_VERSION=1 # see docker/gha/.bashrc_extra
+if [ "$(cat "$BASHRC_EXTRA_PATH" | grep BASHRC_EXTRA_VERSION | true)" \
+     != "# BASHRC_EXTRA_VERSION=$BASHRC_EXTRA_REQUIRED_VERSION" ]; then
+    cp cicd/docker/gha/.bashrc_extra /home/builder/.bashrc_extra.copy
 fi
 
 bash $SHARED_DIR/cicd/lib/shell/toolchain/github-cli/gh.sh
 
 REQUIRED_BUILDER_VERSION='0.0.30'
 {
-    setup_node --use && use_nvm
+    use_nvm
     if [ ! command -v builder ] || \
        [ "$(builder --version)" != "$REQUIRED_BUILDER_VERSION" ]; then
         npm i -g intel-build@$REQUIRED_BUILDER_VERSION

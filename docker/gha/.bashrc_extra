@@ -1,4 +1,5 @@
 #!/bin/bash
+# BASHRC_EXTRA_VERSION=1
 
 # import guard
 [[ -n "$BASHRC_EXTRA_IMPORTED" ]] && return 0
@@ -15,3 +16,7 @@ alias __tools=' ig; printf "$SHARED_DIR"; ige '
 
 alias use_nvm=' ig; export NVM_DIR="$SHARED_DIR/.nvm" ; [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"; ige '
 alias use_pyenv=' ig; export PYENV_ROOT="$SHARED_DIR/.pyenv" ; command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"; ige '
+
+# virtual environment tools
+alias setup_node=' bash $SHARED_DIR/cicd/lib/shell/toolchain/venv/node.sh '
+alias setup_python=' bash $SHARED_DIR/cicd/lib/shell/toolchain/venv/python.sh '
