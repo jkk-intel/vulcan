@@ -33,6 +33,8 @@ export type BuilderCustomOptions = {
     cache?: boolean,
     background?: boolean,
     wait?: boolean,
+    logStream?: fs.WriteStream,
+    log?: (line: string) => any,
 }
 
 export async function killLogTail(logFile: string) {
@@ -55,55 +57,52 @@ export async function buildAllGroups(options: BuilderCustomOptions, compoMap: Co
     }
     setFileContent(`build.all.map.log`, JSON.stringify(buildGroups, null, 4))
     const startTime = Date.now()
-    const buildAllLogFile = fs.createWriteStream(`build.all.log`);
     const config = getActiveBuilderConfig(configChain)
     const buildEnv = config.is_postcommit ? 'POST_COMMIT' : 'PRE_COMMIT'
     const allErrors: FileError[] = []
     const end = () => {
         const dur = ((Date.now() - startTime) / 1000).toFixed(1)
-        forkedConsoleLog(`Finished in ${colors.yellow(dur + 's')}`)
+        options.log(`Finished in ${colors.yellow(dur + 's')}`)
         if (allErrors.length) {
-            forkedConsoleLog(`Overall result: ${colors.red('FAILED')}\n`)
+            options.log(`Overall result: ${colors.red('FAILED')}\n`)
         } else {
-            forkedConsoleLog(`Overall result: ${colors.green('SUCCESS')}\n`)
+            options.log(`Overall result: ${colors.green('SUCCESS')}\n`)
         }
-        buildAllLogFile.close()
         return allErrors.length ? allErrors : null;
     }
-    const forkedConsoleLog = (str: string) => { console.log(str); buildAllLogFile.write(str + '\n'); }
-    forkedConsoleLog('')
-    forkedConsoleLog(colors.gray(`INVOKE_ENV: ${colors.cyan(buildEnv)}`))
-    forkedConsoleLog(colors.gray(`HEAD_BRANCH: ${colors.cyan(config.head_branch)}`))
-    forkedConsoleLog(colors.gray(`BASE_BRANCH: ${colors.cyan(config.base_branch)}`))
-    forkedConsoleLog('')
-    forkedConsoleLog(colors.gray(`Building components in the following group order:`))
+    options.log('')
+    options.log(colors.gray(`INVOKE_ENV: ${colors.cyan(buildEnv)}`))
+    options.log(colors.gray(`HEAD_BRANCH: ${colors.cyan(config.head_branch)}`))
+    options.log(colors.gray(`BASE_BRANCH: ${colors.cyan(config.base_branch)}`))
+    options.log('')
+    options.log(colors.gray(`Building components in the following group order:`))
     let groupIndex = 0
     for (const buildGroup of buildGroups) {
         ++groupIndex
-        forkedConsoleLog(colors.green((`[${'group-' + groupIndex}]`)))
+        options.log(colors.green((`[${'group-' + groupIndex}]`)))
         for (const compo of buildGroup) {
             const name = `${compo.name}${compo.project ? ` (${compo.project})`: ''}`
-            forkedConsoleLog(`    ${colors.yellow(name)}${colors.gray('@'+compo.hash.slice(1))}`)
+            options.log(`    ${colors.yellow(name)}${colors.gray('@'+compo.hash.slice(1))}`)
         }
     }
-    forkedConsoleLog('')
+    options.log('')
     for (const buildGroup of buildGroups) {
         const groupPrepProcesses = buildGroup.map(compoManifest => buildPrepComponent(options, compoMap, compoManifest, configChain, allErrors))
         await Promise.allSettled(groupPrepProcesses)
         if (allErrors.length) {
             return end()
         }
-        const groupBuildProcesses = buildGroup.map(compoManifest => buildComponent(options, compoMap, compoManifest, configChain, allErrors, buildAllLogFile))
+        const groupBuildProcesses = buildGroup.map(compoManifest => buildComponent(options, compoMap, compoManifest, configChain, allErrors))
         await Promise.allSettled(groupBuildProcesses)
         if (allErrors.length) {
             return end()
         }
-        forkedConsoleLog('')
+        options.log('')
     }
     return end()
 }
 
-function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManifestMap, compo: ComponentManifest, configChain: BuilderConfigChain, errors?: FileError[], buildAllLogFile?: fs.WriteStream) {
+function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManifestMap, compo: ComponentManifest, configChain: BuilderConfigChain, errors?: FileError[]) {
     if (!errors) { errors = []; }
     const { tag } = options
     const config = getActiveBuilderConfig(configChain)
@@ -112,7 +111,6 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
             const startTime = Date.now()
             let resolved = false
             const tryResolve = (v: boolean) => resolved ? null : (resolved = true) && resolve(v)
-            const forkedConsoleLog = (str: string) => { console.log(str); buildAllLogFile.write(str + '\n'); }
 
             const cliArgs: string[] = []
             if (compo.docker.debug) { cliArgs.push('-D') }
@@ -202,14 +200,14 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
             const rectifyOutputSection = () => {
                 if (sectionSwitchPending()) {
                     currentOutputOwner = procHeader
-                    forkedConsoleLog('')
-                    forkedConsoleLog(procHeader)
+                    options.log('')
+                    options.log(procHeader)
                 }
             }
             const pushedPaths = allFullImagePaths.map(img => `    ${colors.green(img)}`).join('\n')
             const announcePushes = () => {
                 rectifyOutputSection()
-                forkedConsoleLog(`Successfully published ${colors.cyan(compo.fullname)} to:\n${pushedPaths}\n`)
+                options.log(`Successfully published ${colors.cyan(compo.fullname)} to:\n${pushedPaths}\n`)
             }
 
             // Check prebuilt
@@ -225,7 +223,7 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                 const prebuiltExists = prebuiltResult === 0
                 if (prebuiltExists) {
                     rectifyOutputSection()
-                    forkedConsoleLog(`${colors.yellow(`[PREBUILT]`)} ${colors.cyan(compo.fullname)}${colors.gray('@'+compo.hash.slice(1))}` +
+                    options.log(`${colors.yellow(`[PREBUILT]`)} ${colors.cyan(compo.fullname)}${colors.gray('@'+compo.hash.slice(1))}` +
                                     ` has been published before, skipping building.`)
                     announcePushes()
                     return tryResolve(null)
@@ -268,7 +266,7 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                     const [imageExists, imagePath, stderr] = cacheLookUpSettled.value
                     if (!imageExists) {
                         rectifyOutputSection()
-                        forkedConsoleLog(colors.gray(`[CACHE_MISS] cache image not found: ${stderr.trim().split('\n')[0]}`))
+                        options.log(colors.gray(`[CACHE_MISS] cache image not found: ${stderr.trim().split('\n')[0]}`))
                         continue
                     }
                     cliArgs.push('--cache-from', `type=registry,ref=${imagePath}`)
@@ -306,9 +304,9 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
             const echoLine = (line: string, isError = false) => {
                 rectifyOutputSection()
                 if (isError) {
-                    forkedConsoleLog(colors.red(`${elapsed()}      ${line}    `))
+                    options.log(colors.red(`${elapsed()}      ${line}    `))
                 } else {
-                    forkedConsoleLog(`${elapsed()}      ${line}`)
+                    options.log(`${elapsed()}      ${line}`)
                 }
             }
             const handleLine = line => {
@@ -475,17 +473,17 @@ async function buildPrepComponent(options: BuilderCustomOptions, compoMap: Compo
     }
 }
 
-export async function getComponentsMap(options: BuilderCustomOptions,): Promise<GlobResult<ComponentManifestMap>> {
+export async function getComponentsMap(options: BuilderCustomOptions): Promise<GlobResult<ComponentManifestMap>> {
     const map: ComponentManifestMap = {};
     const errors: FileError[] = [];
-    console.log(colors.gray(`\ntrying to find buildable components in '${process.cwd()}' ...`))
+    options.log(colors.gray(`\ntrying to find buildable components in '${process.cwd()}' ...`))
     const manifestPatterns = [
         `./**/*.component.yml`,
         `./**/*.component.yaml`,
         `./**/*.builder.yml`,
         `./**/*.builder.yaml`,
     ]
-    await getGlobMatched(options.workingDirectory ?? './', manifestPatterns, [], errors, async (file) => {
+    await getGlobMatched(options, options.workingDirectory ?? './', manifestPatterns, [], errors, async (file) => {
         try {
             const { data } = await getFileContent(file, errors)
             const compo = yaml.load(data) as ComponentManifest
@@ -512,7 +510,7 @@ export async function getComponentsMap(options: BuilderCustomOptions,): Promise<
             }
             map[compo.fullname] = compo
             const manigestRelpath = pathlib.relative(process.cwd(), compo.manifest_path)
-            console.log(colors.gray(`\    found component ${colors.green(compo.name)} (${manigestRelpath})`))
+            options.log(colors.gray(`\    found component ${colors.green(compo.name)} (${manigestRelpath})`))
             if (compo.depends_on) { compo.depends_on = stringArray(compo.depends_on) }
             if (!compo._circular_dep_checker) { compo._circular_dep_checker = [] }
         } catch (e) {
@@ -600,7 +598,7 @@ export function orderBuildsInGroups(mapArg: ComponentManifestMap) {
     return totalList;
 }
 
-export async function calculateComponentHashes(compoMap: ComponentManifestMap, buildGroups: ComponentManifest[][]) {
+export async function calculateComponentHashes(options: BuilderCustomOptions, compoMap: ComponentManifestMap, buildGroups: ComponentManifest[][]) {
     const components: { filteredSources: GlobResult, manifest: ComponentManifest }[] = []
     const allErrors: FileError[] = []
     buildGroups.forEach(buildGroup => buildGroup.forEach(compo => {
@@ -618,20 +616,20 @@ export async function calculateComponentHashes(compoMap: ComponentManifestMap, b
         const prebuildScriptRunPromise: Promise<CommandResult>[] = []
         const prebuildScriptMetadata: { script: string, compo: ComponentManifest }[] = []
         const startTime = Date.now()
-        console.log('\n' + colors.green('[prebuild_script]') + ` total ${colors.yellow(prebuildScriptCount)} found, running ...`)
+        options.log('\n' + colors.green('[prebuild_script]') + ` total ${colors.yellow(prebuildScriptCount)} found, running ...`)
         for (const compoData of components) {
             const compo = compoData.manifest
             if (compo.prebuild_script) {
                 const scriptProc = runCommand(compo.prebuild_script, { cwd: compo.dir })
                 prebuildScriptMetadata.push({ script: compo.prebuild_script, compo })
-                console.log(`${colors.gray(`${colors.yellow(compo.fullname)}:`)} ${colors.cyan(compo.prebuild_script)}`)
+                options.log(`${colors.gray(`${colors.yellow(compo.fullname)}:`)} ${colors.cyan(compo.prebuild_script)}`)
                 prebuildScriptRunPromise.push(scriptProc)
             }
         }
         const prebuildSettled = await Promise.allSettled(prebuildScriptRunPromise)
         const prebuildDuration = ((Date.now() - startTime) / 1000).toFixed(1)
-        console.log(colors.green('[prebuild_script]') + ` taken ${colors.yellow(prebuildDuration + 's')}`)
-        console.log('')
+        options.log(colors.green('[prebuild_script]') + ` taken ${colors.yellow(prebuildDuration + 's')}`)
+        options.log('')
         for (let i = 0; i < prebuildSettled.length; ++i) {
             const settled = prebuildSettled[i]
             const scriptMetadata = prebuildScriptMetadata[i]
@@ -675,7 +673,7 @@ export async function calculateComponentHashes(compoMap: ComponentManifestMap, b
         const compo = compoData.manifest
         const relPath = pathlib.relative(process.cwd(), compo.dir)
         const emptyMatchWarningContext = `parsing 'src' in '${relPath}/${pathlib.basename(compo.manifest_path)}'`
-        const filteredResult = await getGlobMatched(compo.dir, compo.src as string[], compo.ignore, [], null, emptyMatchWarningContext)
+        const filteredResult = await getGlobMatched(options, compo.dir, compo.src as string[], compo.ignore, [], null, emptyMatchWarningContext)
         compoData.filteredSources = filteredResult
         const [ _, errors ] = filteredResult
         if (errors) {
@@ -718,7 +716,7 @@ export async function calculateComponentHashes(compoMap: ComponentManifestMap, b
             const [ path, pathStat ] = gitObjectResult.value
             if (pathStat.isDirectory()) {
                 const errors: FileError[] = []
-                dirProms.push(getGlobMatched(compo.dir, [`${path}/**/*`], compo.ignore, errors))
+                dirProms.push(getGlobMatched(options, compo.dir, [`${path}/**/*`], compo.ignore, errors))
             } else {
                 allFiles.push(path)
             }
@@ -770,6 +768,7 @@ export async function calculateComponentHashes(compoMap: ComponentManifestMap, b
 }
 
 function getGlobMatched(
+    options: BuilderCustomOptions,
     workingDirectory: string,
     globexprs: string[],
     ignore: string[],
@@ -804,7 +803,7 @@ function getGlobMatched(
                 files.push(...uniqueList)
             }
             if (paths?.length === 0 && emptyMatchWarningContext) {
-                console.warn(colors.yellow(`WARNING; '${globexpr}' did not match any file while ${emptyMatchWarningContext}`))
+                options.log(colors.yellow(`WARNING; '${globexpr}' did not match any file while ${emptyMatchWarningContext}`))
             }
         }
         if (errors.length) {
@@ -1124,12 +1123,12 @@ export async function resolveBuildEnvironment(config: TypedBuilderConfig, option
     let warned = false
     if (!!config.is_postcommit === !!config.is_precommit) {
         warned = true
-        console.log(colors.yellow(`\nWARNING; 'is_postcommit' and 'is_precommit' `+ 
+        options.log(colors.yellow(`\nWARNING; 'is_postcommit' and 'is_precommit' `+ 
                                     `cannot be the same value in 'builder.config.yml'`))
     }
     config.is_postcommit = !config.is_precommit
     if (warned) {
-        console.log(colors.yellow(`WARNING; overriding 'is_postcommit' to ${config.is_postcommit}`))
+        options.log(colors.yellow(`WARNING; overriding 'is_postcommit' to ${config.is_postcommit}`))
     }
     return config
 }

@@ -32,7 +32,7 @@ cli.command('build')
 .action(async (options: BuilderCustomOptions) => {
     if (options.background) {
         await setFileContent(`build.all.log`, '')
-        nohupDisown(process.argv.filter(a => a !== '--background'))
+        nohupDisown(process.argv.filter(a => a !== '--background' && a !== '--wait'))
         return
     }
     if (options.wait) {
@@ -43,9 +43,12 @@ cli.command('build')
         })
         return
     }
+    options.logStream = fs.createWriteStream(`build.all.log`);
+    options.log = (str: string) => { console.log(str); options.logStream.write(str + '\n'); }
     const exit = async (code = 0) => {
         await setFileContent(`build.all.result.log`, code === 0 ? 'SUCCESS' : 'FAILURE')
         await killLogTail(`build.all.log`)
+        if (!options.logStream.closed) { options.logStream.close() }
         setTimeout(() => process.exit(code), 500) as any
     }
     try {
@@ -68,7 +71,7 @@ cli.command('build')
             for (const err of depErrors) { console.error(colors.red(err.e)); } return exit(1)
         }
         const buildGroups = orderBuildsInGroups(compoMap);
-        const hashCalculationErrors = await calculateComponentHashes(compoMap, buildGroups)
+        const hashCalculationErrors = await calculateComponentHashes(options, compoMap, buildGroups)
         if (hashCalculationErrors) {
             for (const err of hashCalculationErrors) { console.error(colors.red(err.e)); } return exit(1)
         }
