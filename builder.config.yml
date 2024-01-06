@@ -1,20 +1,30 @@
 type: standard
 base_branch: main
 docker:
-  # remote_builders:
-  #   - builder-1
-  # build_args:
-  #   HTTP_PROXY: some-proxy.com
-  #   HTTPS_PROXY: some-proxy.com
-  #   NO_PROXY: some-proxy.com
-  registry:
-    cache: example-registry.com/cache
-    temp: example-registry.com/cache
-    published:
-      precommit:
-        publish: ci-only
-        target: example-registry.com/precommit
-      postcommit:
-        publish: ci-only
-        publish_latest: ci-only
-        target: example-registry.com/postcommit
+    # build_args:
+    #     HTTP_PROXY: http://example.com:12345
+    #     HTTPS_PROXY: http://example.com:12345
+    #     NO_PROXY: localhost
+    registry:
+        cache: docker.io/my-repo
+        temp: docker.io/my-repo
+        published:
+            precommit:
+                publish: ci-only
+                target: example.com/precommit
+            postcommit:
+                publish: ci-only
+                publish_latest: ci-only
+                target: example.com/postcommit
+    task_assign:
+        type: builder-pool
+        strategy: roundrobin
+        builder_pool:
+            - builder-1
+            - builder-2
+            - builder-3
+            - builder-4
+            - builder-5
+            - builder-6
+            - builder-7
+            - builder-8

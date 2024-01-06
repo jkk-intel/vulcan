@@ -14,7 +14,7 @@ export interface ComponentManifest {
     affected_by?: string[];
     ignore?: string[];
     info?: string
-    builder?: 'docker' | 'shell';
+    builder?: 'docker' | 'shell' | 'nobuild';
     hash?: string;
     hash_long?: string;
     timeout?: number;
@@ -64,7 +64,12 @@ export interface BuilderConfigStandard {
     multi_component?: boolean
     start_time?: number
     docker?: {
-        remote_builders?: string[] 
+        task_assign?: {
+            type?: 'builder-pool' | 'coordinator'
+            strategy?: 'roundrobin' | 'random'
+            coordinatorEndpoint?: string
+            builder_pool?: string[]
+        }
         build_args?: {[argname: string]: string}
         registry?: DockerRegistryInfo
     }

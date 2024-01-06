@@ -4,7 +4,7 @@ import * as pathlib from 'path'
 import * as crypto from 'crypto'
 import * as readline from 'readline'
 import * as os from 'os'
-import { ExecOptions, SpawnOptions, exec, spawn } from 'child_process'
+import { ChildProcess, ExecOptions, SpawnOptions, exec, spawn } from 'child_process'
 import { promise } from 'ts-basis'
 import { BuilderConfig, BuilderConfigChain, ComponentManifest, ComponentManifestMap, TypedBuilderConfig } from './model'
 import { v4 as uuidv4 } from 'uuid'
@@ -20,6 +20,7 @@ const defaultExcludes = [
 type FileError = {file: any; e: Error; data?: any; isWarning?: boolean; };
 type GlobResult<T = string[]> = [T, FileError[]]
 let currentOutputOwner = ''
+let lastUsedBuilderIndex = -1
 
 export type BuilderCustomOptions = {
     tag?: string,
@@ -30,6 +31,16 @@ export type BuilderCustomOptions = {
     headBranch?: string,
     prebuilt?: boolean,
     cache?: boolean,
+}
+
+export async function killLogTail(logFile: string) {
+    const [code, stdout, stderr, e] = await runCommand(`ps -a`)
+    const entries = stdout.split('\n').map(a => a.trim()).filter(a => a)
+    const matchedPids = entries.filter(a => a.startsWith('tail') && a.indexOf(logFile) >= 0)
+                                .map(psLine => psLine.split(' ')[0])
+    if (matchedPids.length) {
+        await Promise.all(matchedPids.map(pid => runCommand(`kill -9 ${pid}`)))
+    }
 }
 
 export async function buildAllGroups(options: BuilderCustomOptions, compoMap: ComponentManifestMap, buildGroups: ComponentManifest[][], configChain?: BuilderConfigChain) {
@@ -118,10 +129,21 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
             const ephemeralImageCustomTag = getEphemeralComponentFullpath(compo, config, tag)
 
             let chosenBuilder: string = ''
-            if (stringArray(config.docker?.remote_builders).length) {
-                const builders = stringArray(config.docker?.remote_builders)
-                chosenBuilder = builders[0]
-                cliArgs.push('--builder', chosenBuilder)
+            if (
+                config.docker?.task_assign?.type === 'builder-pool' &&
+                stringArray(config.docker?.task_assign?.builder_pool).length
+            ) {
+                const pool = stringArray(config.docker?.task_assign?.builder_pool)
+                if (config.docker?.task_assign?.strategy === 'roundrobin') {
+                    ++lastUsedBuilderIndex; lastUsedBuilderIndex %= pool.length;
+                    chosenBuilder = pool[lastUsedBuilderIndex]
+                } else if (config.docker?.task_assign?.strategy === 'random') {
+                    lastUsedBuilderIndex = Math.floor(Math.random() * pool.length)
+                    chosenBuilder = pool[lastUsedBuilderIndex]
+                }
+                if (chosenBuilder) {
+                    cliArgs.push('--builder', chosenBuilder)
+                }
             }
 
             cliArgs.push('--tag', ephemeralImageHashedTag)
@@ -257,7 +279,7 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                      `\n\n`)
             
             const spawnOpts: SpawnOptions = {}
-            const proc = spawn('docker', cliArgs, spawnOpts)
+            const proc = spawn('docker', cliArgs, spawnOpts) 
 
             let inErrorSection = false
             const elapsed = () => {
@@ -285,6 +307,11 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
             }
             const handleLine = line => {
                 const lit = line.split(' ').filter(a => a);
+                const cacheExportClauseAt = line.slice(0, 40).indexOf('exporting cache to registry')
+                if (cacheExportClauseAt >= 0 && cacheExportClauseAt < 10) {
+                    finishProc()
+                    return
+                }
                 if (line.charAt(0).startsWith('#')) {
                     inErrorSection = false
                 }
@@ -301,6 +328,30 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                 } else if (isAppErrorLine(line) && !shouldIgnore(line)) {
                     return echoLine(line, true)
                 }
+            }
+            let alreadyFinished = false
+            const finishProc = (code = 0) => {
+                if (alreadyFinished) {
+                    return
+                }
+                alreadyFinished = true
+                const isSuccessful = code === 0
+                const dur = ((Date.now() - startTime) / 1000).toFixed(1)
+                echoLine(
+                    isSuccessful ?
+                        `${colors.green('FINISHED')} '${compo.fullname}' (${dur}s)` :
+                        `${colors.red('FAILED')} '${compo.fullname}' (${dur}s), exitcode=${code}`
+                )
+                if (!isSuccessful) {
+                    errors.push({
+                        file: dockerfileAbspath,
+                        e: new Error(`ERROR; docker build failed for component '${compo.name}'`+
+                                     `\n(more info at ${streamFile}:1:1):\n`)
+                    })
+                } else {
+                    announcePushes()
+                }
+                tryResolve(isSuccessful)
             }
 
             echoLine(`${colors.green('STARTED')} '${compo.fullname}'`)
@@ -329,24 +380,9 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
             proc.on('close', code => {
                 stdoutReader.close()
                 stderrReader.close()
-                const isSuccessful = code === 0
-                const dur = ((Date.now() - startTime) / 1000).toFixed(1)
-                echoLine(
-                    isSuccessful ?
-                        `${colors.green('FINISHED')} '${compo.fullname}' (${dur}s)` :
-                        `${colors.red('FAILED')} '${compo.fullname}' (${dur}s), exitcode=${code}`
-                )
-                if (!isSuccessful) {
-                    errors.push({
-                        file: dockerfileAbspath,
-                        e: new Error(`ERROR; docker build failed for component '${compo.name}'`+
-                                     `\n(more info at ${streamFile}:1:1):\n`)
-                    })
-                } else {
-                    announcePushes()
-                }
-                tryResolve(isSuccessful)
+                finishProc(code)
             })
+
         })
     }
 }
@@ -575,7 +611,8 @@ export async function calculateComponentHashes(compoMap: ComponentManifestMap, b
     if (prebuildScriptCount) {
         const prebuildScriptRunPromise: Promise<CommandResult>[] = []
         const prebuildScriptMetadata: { script: string, compo: ComponentManifest }[] = []
-        console.log('\n' + colors.green('[prebuild_script]') + colors.gray(` total ${colors.yellow(prebuildScriptCount)} found, running ...`))
+        const startTime = Date.now()
+        console.log('\n' + colors.green('[prebuild_script]') + ` total ${colors.yellow(prebuildScriptCount)} found, running ...`)
         for (const compoData of components) {
             const compo = compoData.manifest
             if (compo.prebuild_script) {
@@ -585,8 +622,10 @@ export async function calculateComponentHashes(compoMap: ComponentManifestMap, b
                 prebuildScriptRunPromise.push(scriptProc)
             }
         }
-        console.log('')
         const prebuildSettled = await Promise.allSettled(prebuildScriptRunPromise)
+        const prebuildDuration = ((Date.now() - startTime) / 1000).toFixed(1)
+        console.log(colors.green('[prebuild_script]') + ` taken ${colors.yellow(prebuildDuration + 's')}`)
+        console.log('')
         for (let i = 0; i < prebuildSettled.length; ++i) {
             const settled = prebuildSettled[i]
             const scriptMetadata = prebuildScriptMetadata[i]
@@ -882,7 +921,7 @@ function dockerCacheFromResolve(imagePath: string) {
     });
 }
 
-function setFileContent(file: string, content: string, errors?: FileError[]) {
+export function setFileContent(file: string, content: string, errors?: FileError[]) {
     if (!errors) { errors = []; }
     return promise<boolean>(async (resolve) => {
         fs.writeFile(file, content, 'utf8', e => {
@@ -895,7 +934,7 @@ function setFileContent(file: string, content: string, errors?: FileError[]) {
     });
 }
 
-function existingPath(workingDirectory: string, path: string) {
+export function existingPath(workingDirectory: string, path: string) {
     return promise<string | Error>(resolve => {
         fs.access(abspath(workingDirectory, path), error => {
             return resolve(!error ? path : error)

@@ -1,8 +1,9 @@
 import { Command } from 'commander';
-import { getDependencyErrors, getComponentsMap, orderBuildsInGroups, calculateComponentHashes, findBuilderConfig, buildAllGroups, getActiveBuilderConfig, resolveBuildEnvironment, BuilderCustomOptions, runCommand, matchFiles } from './builder';
+import { getDependencyErrors, getComponentsMap, orderBuildsInGroups, calculateComponentHashes, findBuilderConfig, buildAllGroups, getActiveBuilderConfig, resolveBuildEnvironment, BuilderCustomOptions, runCommand, matchFiles, setFileContent, killLogTail, existingPath } from './builder';
 import { globalRoot } from 'ts-basis';
 import * as crypto from 'crypto';
 import * as pathlib from 'path'
+import * as fs from 'fs'
 import { v4 as uuidv4 } from 'uuid'
 import packageJSON from '../package.json'
 const colors = require('colors/safe')
@@ -26,47 +27,60 @@ cli.command('build')
 .option('--ci', 'whether the current build is during CI flow')
 .description(`build components with parameters, v1`)
 .action(async (options: BuilderCustomOptions) => {
-    const exit = (code = 0) => setTimeout(() => process.exit(code), 500) as any
-    console.log('')
-    console.log(colors.gray(`build invoked with following options: {`))
-    for (const optionName of Object.keys(options)) {
-        console.log(colors.gray(`   ${optionName}: ${colors.cyan(options[optionName])}`))    
+    if (await existingPath('.', `build.all.log`) instanceof Error) {
+        fs.writeFileSync(`build.all.log`, '');    
     }
-    console.log(colors.gray('}'))
-    if (options.workingDirectory) {
-        const newDir = pathlib.join(process.cwd(), options.workingDirectory)
-        try {
-            process.chdir(newDir)
-        } catch (e) {
-            console.error(`ERROR; unable to change directory to '${options.workingDirectory}' (${newDir})`)
-            return exit(1)
+    const exit = async (code = 0) => {
+        await setFileContent(`build.all.result.log`, code === 0 ? 'SUCCESS' : 'FAILURE')
+        await killLogTail(`build.all.log`)
+        setTimeout(() => process.exit(code), 500) as any
+    }
+    try {
+        console.log('')
+        console.log(colors.gray(`build invoked with following options: {`))
+        for (const optionName of Object.keys(options)) {
+            console.log(colors.gray(`   ${optionName}: ${colors.cyan(options[optionName])}`))    
         }
+        console.log(colors.gray('}'))
+        if (options.workingDirectory) {
+            const newDir = pathlib.join(process.cwd(), options.workingDirectory)
+            try {
+                process.chdir(newDir)
+            } catch (e) {
+                console.error(`ERROR; unable to change directory to '${options.workingDirectory}' (${newDir})`)
+                return exit(1)
+            }
+        }
+        const configChain = await findBuilderConfig()
+        const activeConfig = getActiveBuilderConfig(configChain)
+        await resolveBuildEnvironment(activeConfig, options)
+        activeConfig.start_time = Date.now()
+        const [ compoMap, fileErrors ] = await getComponentsMap();
+        if (fileErrors) {
+            for (const err of fileErrors) { console.error(colors.red(err.e)); } return exit(1)
+        }
+        const depErrors  = getDependencyErrors(compoMap);
+        if (depErrors) {
+            for (const err of depErrors) { console.error(colors.red(err.e)); } return exit(1)
+        }
+        const buildGroups = orderBuildsInGroups(compoMap);
+        const hashCalculationErrors = await calculateComponentHashes(compoMap, buildGroups)
+        if (hashCalculationErrors) {
+            for (const err of hashCalculationErrors) { console.error(colors.red(err.e)); } return exit(1)
+        }
+        if (!options.tag) {
+            options.tag = `_tmp-${crypto.randomBytes(8).toString('hex')}`
+            console.warn(colors.yellow(`WARNING; --tag option was not given for the build, using temporary tag '${options.tag}'`))
+        }
+        const buildErrors = await buildAllGroups(options, compoMap, buildGroups, configChain)
+        if (buildErrors) {
+            for (const err of buildErrors) { console.error(colors.red(err.e)); } return exit(1)
+        }
+    } catch (e) {
+        console.error(colors.red(e));
+        return exit(1)
     }
-    const configChain = await findBuilderConfig()
-    const activeConfig = getActiveBuilderConfig(configChain)
-    await resolveBuildEnvironment(activeConfig, options)
-    activeConfig.start_time = Date.now()
-    const [ compoMap, fileErrors ] = await getComponentsMap();
-    if (fileErrors) {
-        for (const err of fileErrors) { console.error(colors.red(err.e)); } return exit(1)
-    }
-    const depErrors  = getDependencyErrors(compoMap);
-    if (depErrors) {
-        for (const err of depErrors) { console.error(colors.red(err.e)); } return exit(1)
-    }
-    const buildGroups = orderBuildsInGroups(compoMap);
-    const hashCalculationErrors = await calculateComponentHashes(compoMap, buildGroups)
-    if (hashCalculationErrors) {
-        for (const err of hashCalculationErrors) { console.error(colors.red(err.e)); } return exit(1)
-    }
-    if (!options.tag) {
-        options.tag = `_tmp-${crypto.randomBytes(8).toString('hex')}`
-        console.warn(colors.yellow(`WARNING; --tag option was not given for the build, using temporary tag '${options.tag}'`))
-    }
-    const buildErrors = await buildAllGroups(options, compoMap, buildGroups, configChain)
-    if (buildErrors) {
-        for (const err of buildErrors) { console.error(colors.red(err.e)); } return exit(1)
-    }
+    exit(0)
 });
 
 const diff = cli.command('diff').description('lib for utils regarding changed files');
