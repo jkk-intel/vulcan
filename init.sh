@@ -38,7 +38,7 @@ fi
 
 BASHRC_EXTRA_PATH="/home/builder/.bashrc_extra"
 BASHRC_EXTRA_REQUIRED_VERSION=2         # see docker/gha/.bashrc_extra
-if [ "$(cat "$BASHRC_EXTRA_PATH" | grep BASHRC_EXTRA_VERSION | true)" \
+if [ "$(cat "$BASHRC_EXTRA_PATH" | grep BASHRC_EXTRA_VERSION || true)" \
      != "# BASHRC_EXTRA_VERSION=$BASHRC_EXTRA_REQUIRED_VERSION" ]; then
     cp cicd/docker/gha/.bashrc_extra /home/builder/.bashrc_extra
     if [ -f "$SHARED_DIR/.bashrc_extra_additional" ]; then
