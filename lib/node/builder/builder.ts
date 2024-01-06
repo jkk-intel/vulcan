@@ -7,6 +7,7 @@ import * as os from 'os'
 import { ExecOptions, SpawnOptions, exec, spawn } from 'child_process'
 import { promise } from 'ts-basis'
 import { BuilderConfig, BuilderConfigChain, ComponentManifest, ComponentManifestMap, TypedBuilderConfig } from './model'
+import { v4 as uuidv4 } from 'uuid'
 const fg = require('fast-glob')
 const colors = require('colors/safe')
 
@@ -185,13 +186,14 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
 
             // Check prebuilt
             if (options.prebuilt && !compo.no_prebuilt) {
-                const tmpfile = `${os.tmpdir()}/${compo.fullname.replace(/\//g, '_')}.Dockerfile`
+                const tmpfile = `${await getTempDir()}/${compo.fullname.replace(/\//g, '_')}.Dockerfile`
                 await setFileContent(tmpfile, `FROM ${ephemeralImageHashedTag}`)
                 let checkerCmd = `docker buildx build `
                 checkerCmd += chosenBuilder ? ` --builder '${chosenBuilder}' ` : ''
                 checkerCmd += allFullImagePaths.map(img => ` --tag '${img}'`).join(' ')
                 checkerCmd += ` --pull --push -f '${tmpfile}' . `
                 const [ prebuiltResult ] = await runCommand(checkerCmd)
+                fs.unlink(tmpfile, () => {})
                 const prebuiltExists = prebuiltResult === 0
                 if (prebuiltExists) {
                     rectifyOutputSection()
@@ -826,7 +828,7 @@ async function filterExistingPaths(workingDirectory: string, paths: string[], er
 }
 
 type CommandResult = [number, string, string, Error]
-function runCommand(command: string, options?: ExecOptions) {
+export function runCommand(command: string, options?: ExecOptions) {
     if (!options) { options = {} }
     let exitCode = 0
     return promise<CommandResult>(resolve => {
@@ -1085,4 +1087,55 @@ export async function resolveBuildEnvironment(config: TypedBuilderConfig, option
         console.log(colors.yellow(`WARNING; overriding 'is_postcommit' to ${config.is_postcommit}`))
     }
     return config
+}
+
+export function getTempDir() {
+    return promise(resolve => {
+        const dir = `${os.tmpdir()}/${uuidv4()}`
+        fs.mkdir(dir, { recursive: true }, e => {
+            if (e) { return resolve(null) }
+            resolve(dir)
+        })
+    })
+}
+
+export async function matchFiles(files: string[], patterns: string[], excludes: string[]) {
+    excludes = uniqueStringArray(excludes.concat(defaultExcludes).map(a => a.startsWith('!') ? a : `!${a}`))
+    const prevCwd = process.cwd()
+    const tempDir = await getTempDir()
+    const touchFile = (file: string) => {
+        return promise<boolean>(resolve => {
+            fs.mkdir(pathlib.dirname(file), { recursive: true }, e => {
+                if (e) { return resolve(false); }
+                fs.writeFile(file, '', e2 => {
+                    if (e2) { return resolve(false); }
+                    resolve(true)
+                })
+            })
+        })
+    }
+    process.chdir(tempDir)
+    await Promise.allSettled(files.map(file => touchFile(file)))
+    const matchPattern = (pattern: string) => {
+        return promise<string[]>(resolve => {
+            fg([pattern, ...excludes], { dot: true }).then((matchedFiles: string[]) => {
+                matchedFiles.sort((a, b) => a.localeCompare(b))
+                return resolve(matchedFiles)
+            }).catch(e => {
+                return resolve([])
+            });
+        })
+    }
+    const matchSettleds = await Promise.allSettled(patterns.map(pattern => matchPattern(pattern)))
+    const allMatched: string[] = []
+    for (const matched of matchSettleds) {
+        if (matched.status === 'rejected') {
+            continue
+        }
+        allMatched.push(...matched.value)
+    }
+    const allMatchedUnique = uniqueStringArray(allMatched)
+    process.chdir(prevCwd)
+    fs.unlink(tempDir, e => {})
+    return allMatchedUnique
 }

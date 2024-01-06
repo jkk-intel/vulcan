@@ -1,8 +1,9 @@
 import { Command } from 'commander';
-import { getDependencyErrors, getComponentsMap, orderBuildsInGroups, calculateComponentHashes, findBuilderConfig, buildAllGroups, getActiveBuilderConfig, resolveBuildEnvironment, BuilderCustomOptions } from './builder';
+import { getDependencyErrors, getComponentsMap, orderBuildsInGroups, calculateComponentHashes, findBuilderConfig, buildAllGroups, getActiveBuilderConfig, resolveBuildEnvironment, BuilderCustomOptions, runCommand, matchFiles } from './builder';
 import { globalRoot } from 'ts-basis';
 import * as crypto from 'crypto';
 import * as pathlib from 'path'
+import { v4 as uuidv4 } from 'uuid'
 import packageJSON from '../package.json'
 const colors = require('colors/safe')
 
@@ -14,9 +15,7 @@ cli.name(binName)
     .description(`advanced project components building framework`)
     .version(version);
 
-const v1 = cli.command('v1');
-
-v1.command('build')
+cli.command('build')
 .option('--tag <tag>', 'image tag for the build set (branch name or run number). If not given, the tag is auto-generated')
 .option('--working-directory <workingDirectory>', 'change directory to specified dir before running the build')
 .option('--head-branch <headBranch>', 'working branch name for precommit')
@@ -70,8 +69,85 @@ v1.command('build')
     }
 });
 
+const diff = cli.command('diff').description('lib for utils regarding changed files');
+
+diff.command('show')
+.option('--count', 'return the number of changed files instead of showing the list')
+.action(async (options: { count: boolean }) => {
+    const [code, stdout, stderr, e] = await runCommand(`git diff --name-only -r HEAD^1 HEAD`)
+    const files = (code === 0) ? stdout.split('\n').filter(a => a.trim()) : []
+    if (options.count) {
+        console.log(files.length)
+    } else {
+        files.forEach(file => console.log(file))
+    }
+    files.forEach(file => console.log(file))
+});
+
+diff.command('match')
+.option('--exclude <exclude>', 'glob pattern to exclude', arrayType, [])
+.option('--count', 'return the number of matched files instead of showing the list')
+.argument('<patterns...>', 'glob pattern to match the diff files with')
+.action(async (patterns: string[], options: { exclude: string[], count: boolean }) => {
+    const [code, stdout, stderr, e] = await runCommand(`git diff --name-only -r HEAD^1 HEAD`)
+    const files = (code === 0) ? stdout.split('\n').filter(a => a.trim()) : []
+    const matchedFiles = await matchFiles(files, patterns, options.exclude)
+    if (options.count) {
+        console.log(matchedFiles.length)
+    } else {
+        matchedFiles.forEach(file => console.log(file))
+    }
+});
+
+const picker = cli.command('pick').description('lib for utils regarding choosing numbers within given ranges')
+
+picker.command('modulo')
+.argument('<modulo>', 'pool size for the pick')
+.argument('[input]', "<integer> | <hexadecimal> | 'commit-sha' | 'random'")
+.option('--natural', 'natural number counting; instead of [0-m) range, do [1-m]')
+.option('--add <add>', '[-/+] integer to add to the picked result')
+.action(async (modulo: string, input: string, options: { natural: boolean, add: string }) => {
+    if (!input || input === 'random') {
+        input = uuidv4().split('-').join('')
+    } else if (input === 'commit-sha') {
+        const [code, stdout, stderr, e] = await runCommand(`git rev-parse HEAD`)
+        if (code !== 0) {
+            input = uuidv4().split('-').join('')
+            console.error(colors.red(`Unable to get commit sha: ${stderr}`))
+            process.exit(1)
+        }
+        input = stdout.trim()
+    }
+    let hexValue = ''
+    if (!isNaN(parseInt(input.slice(0, 8), 16))) {
+        hexValue = input.split('').reverse().join('')
+    } else if (!isNaN(parseInt(input.slice(0, 15), 10))) {
+        hexValue = parseInt(input.slice(0, 15), 10).toString(16)
+    } else {
+        console.error(colors.red(`Bad input value '${input}', ` +
+                                 `options: <integer> | <hexadecimal> | 'commit-sha' | 'random'`))
+        process.exit(1)
+    }
+    const num = Math.abs(parseInt(hexValue, 16))
+    const moduloNum = parseInt(modulo, 10)
+    if (isNaN(moduloNum) || !moduloNum || moduloNum < 0) {
+        console.error(colors.red(`Bad modulo value '${modulo}', ` +
+                                 `must be a natural number`))
+        process.exit(1)
+    }
+    const picked = num % moduloNum
+    const naturalApplied = options.natural ? picked + 1 : picked
+    const addApplied = !isNaN(parseInt(options.add, 10)) ?
+                        naturalApplied + parseInt(options.add, 10) : naturalApplied
+    console.log(addApplied)
+});
+
 cli.parse();
 
 globalRoot.on('unhandledRejection', (e: Error, prom) => {
     console.error(e);
 });
+
+function arrayType(value, previous) {
+    return previous.concat([value]);
+}
