@@ -50,3 +50,11 @@ alias setup_python='"'"' bash $SHARED_DIR/cicd/lib/shell/toolchain/venv/python.s
 fi
 
 bash $SHARED_DIR/cicd/lib/shell/toolchain/github-cli/gh.sh
+
+setup_node --use && use_nvm
+REQUIRED_BUILDER_VERSION='0.0.30'
+if [ ! command -v builder >/dev/null 2>&1 ] || \
+   [ "$(builder --version)" != "$REQUIRED_BUILDER_VERSION" ]; then
+    npm i -g intel-build@$BUILDER_VER >/dev/null 2>&1 || true
+fi
+echo "BUILDER_VERSION=$REQUIRED_BUILDER_VERSION"
