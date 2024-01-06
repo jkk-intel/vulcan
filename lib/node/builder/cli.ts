@@ -102,7 +102,6 @@ diff.command('show')
     } else {
         files.forEach(file => console.log(file))
     }
-    files.forEach(file => console.log(file))
 });
 
 diff.command('match')
