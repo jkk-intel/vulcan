@@ -51,10 +51,12 @@ fi
 
 bash $SHARED_DIR/cicd/lib/shell/toolchain/github-cli/gh.sh
 
-use_nvm
 REQUIRED_BUILDER_VERSION='0.0.30'
-if [ ! command -v builder >/dev/null 2>&1 ] || \
-   [ "$(builder --version)" != "$REQUIRED_BUILDER_VERSION" ]; then
-    npm i -g intel-build@$BUILDER_VER >/dev/null 2>&1 || true
-fi
+{
+    setup_node --use && use_nvm
+    if [ ! command -v builder ] || \
+       [ "$(builder --version)" != "$REQUIRED_BUILDER_VERSION" ]; then
+        npm i -g intel-build@$REQUIRED_BUILDER_VERSION
+    fi
+} >/dev/null 2>&1
 echo "BUILDER_VERSION=$REQUIRED_BUILDER_VERSION"
