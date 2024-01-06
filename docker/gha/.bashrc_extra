@@ -1,5 +1,5 @@
 #!/bin/bash
-# BASHRC_EXTRA_VERSION=1
+# BASHRC_EXTRA_VERSION=2
 
 # import guard
 [[ -n "$BASHRC_EXTRA_IMPORTED" ]] && return 0

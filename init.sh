@@ -37,10 +37,13 @@ if [ -n "$GITHUB_WORKSPACE" ]; then
 fi
 
 BASHRC_EXTRA_PATH="/home/builder/.bashrc_extra"
-BASHRC_EXTRA_REQUIRED_VERSION=1 # see docker/gha/.bashrc_extra
+BASHRC_EXTRA_REQUIRED_VERSION=2         # see docker/gha/.bashrc_extra
 if [ "$(cat "$BASHRC_EXTRA_PATH" | grep BASHRC_EXTRA_VERSION | true)" \
      != "# BASHRC_EXTRA_VERSION=$BASHRC_EXTRA_REQUIRED_VERSION" ]; then
     cp cicd/docker/gha/.bashrc_extra /home/builder/.bashrc_extra
+    if [ -f "$SHARED_DIR/.bashrc_extra_additional" ]; then
+        cat "$SHARED_DIR/.bashrc_extra_additional" | tee -a "$BASHRC_EXTRA_PATH" >/dev/null
+    fi
 fi
 
 bash $SHARED_DIR/cicd/lib/shell/toolchain/github-cli/gh.sh
