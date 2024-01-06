@@ -79,11 +79,11 @@ type DockerRegistryInfo = {
     temp?: string | string[]
     cache?: string | string[]
     published?: {
-        postcommit?: {
+        precommit?: {
             publish?: boolean | 'ci-only'
             target?: string | string[]
         }
-        precommit?: {
+        postcommit?: {
             publish?: boolean | 'ci-only'
             publish_latest?: boolean | 'ci-only'
             target?: string | string[]

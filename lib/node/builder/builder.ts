@@ -182,9 +182,9 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                     cliArgs.push('--tag', fullPath)
                     allFullImagePaths.push(fullPath)
                 }
-                if (shouldPublish(config.docker?.registry?.published?.postcommit?.publish)) {
+                if (shouldPublish(config.docker?.registry?.published?.postcommit?.publish_latest)) {
                     for (const publishPath of publishPaths) {
-                        const fullPath = `${publishPath}:latest-postcommit`
+                        const fullPath = `${publishPath}:latest`
                         cliArgs.push('--tag', fullPath)
                         allFullImagePaths.push(fullPath)
                     }
