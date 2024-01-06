@@ -51,7 +51,7 @@ fi
 
 bash $SHARED_DIR/cicd/lib/shell/toolchain/github-cli/gh.sh
 
-setup_node --use && use_nvm
+use_nvm
 REQUIRED_BUILDER_VERSION='0.0.30'
 if [ ! command -v builder >/dev/null 2>&1 ] || \
    [ "$(builder --version)" != "$REQUIRED_BUILDER_VERSION" ]; then
