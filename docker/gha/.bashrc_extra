@@ -14,8 +14,10 @@ alias ige=' FLOWCTL_HALTED=0 && set -e '
 alias __dir=' ig; cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd; ige '
 alias __tools=' ig; printf "$SHARED_DIR"; ige '
 
+# toolchain
 alias use_nvm=' ig; export NVM_DIR="$SHARED_DIR/.nvm" ; [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"; ige '
 alias use_pyenv=' ig; export PYENV_ROOT="$SHARED_DIR/.pyenv" ; command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"; ige '
+alias use_builder=' use_nvm '
 
 # virtual environment tools
 alias setup_node=' bash $SHARED_DIR/cicd/lib/shell/toolchain/venv/node.sh '
