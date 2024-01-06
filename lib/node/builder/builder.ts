@@ -31,16 +31,22 @@ export type BuilderCustomOptions = {
     headBranch?: string,
     prebuilt?: boolean,
     cache?: boolean,
+    background?: boolean,
+    wait?: boolean,
 }
 
 export async function killLogTail(logFile: string) {
     const [code, stdout, stderr, e] = await runCommand(`ps -ef`)
     const entries = stdout.split('\n').map(a => a.trim()).filter(a => a)
-    const matchedPids = entries.filter(a => a.startsWith('tail') && a.indexOf(logFile) >= 0)
+    const matchedPids = entries.filter(a => a.indexOf(`tail -f -n +1 ${logFile}`) >= 0)
                                 .map(psLine => psLine.split(' ').filter(a => a)[1])
     if (matchedPids.length) {
         await Promise.all(matchedPids.map(pid => runCommand(`kill -9 ${pid}`)))
     }
+}
+
+export async function nohupDisown(args: string[]) {
+    await runCommand(`nohup ${args.map(a => `'${a}'`).join(' ')} >/dev/null 2>&1 &disown`)
 }
 
 export async function buildAllGroups(options: BuilderCustomOptions, compoMap: ComponentManifestMap, buildGroups: ComponentManifest[][], configChain?: BuilderConfigChain) {
@@ -469,17 +475,17 @@ async function buildPrepComponent(options: BuilderCustomOptions, compoMap: Compo
     }
 }
 
-export async function getComponentsMap(currentPath = '.'): Promise<GlobResult<ComponentManifestMap>> {
+export async function getComponentsMap(options: BuilderCustomOptions,): Promise<GlobResult<ComponentManifestMap>> {
     const map: ComponentManifestMap = {};
     const errors: FileError[] = [];
     console.log(colors.gray(`\ntrying to find buildable components in '${process.cwd()}' ...`))
     const manifestPatterns = [
-        `${currentPath}/**/*.component.yml`,
-        `${currentPath}/**/*.component.yaml`,
-        `${currentPath}/**/*.builder.yml`,
-        `${currentPath}/**/*.builder.yaml`,
+        `./**/*.component.yml`,
+        `./**/*.component.yaml`,
+        `./**/*.builder.yml`,
+        `./**/*.builder.yaml`,
     ]
-    await getGlobMatched('.', manifestPatterns, [], errors, async (file) => {
+    await getGlobMatched(options.workingDirectory ?? './', manifestPatterns, [], errors, async (file) => {
         try {
             const { data } = await getFileContent(file, errors)
             const compo = yaml.load(data) as ComponentManifest
@@ -901,7 +907,7 @@ function shasumStringArray(context: string, arr: string[]) {
     return hash.digest().subarray(0, 32).toString('hex')
 }
 
-function getFileContent(file: string, errors?: FileError[]) {
+export function getFileContent(file: string, errors?: FileError[]) {
     if (!errors) { errors = []; }
     return promise<{file: string, data: string}>(async (resolve) => {
         fs.readFile(file, 'utf8', (e, data) => {

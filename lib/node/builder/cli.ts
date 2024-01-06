@@ -1,6 +1,7 @@
 import { Command } from 'commander';
-import { getDependencyErrors, getComponentsMap, orderBuildsInGroups, calculateComponentHashes, findBuilderConfig, buildAllGroups, getActiveBuilderConfig, resolveBuildEnvironment, BuilderCustomOptions, runCommand, matchFiles, setFileContent, killLogTail, existingPath } from './builder';
+import { getDependencyErrors, getComponentsMap, orderBuildsInGroups, calculateComponentHashes, findBuilderConfig, buildAllGroups, getActiveBuilderConfig, resolveBuildEnvironment, BuilderCustomOptions, runCommand, matchFiles, setFileContent, killLogTail, existingPath, nohupDisown, getFileContent } from './builder';
 import { globalRoot } from 'ts-basis';
+import { spawn } from 'child_process'
 import * as crypto from 'crypto';
 import * as pathlib from 'path'
 import * as fs from 'fs'
@@ -25,10 +26,22 @@ cli.command('build')
 .option('--no-cache', 'disables docker cache and build all layers')
 .option('--precommit-context <precommitContext>', 'context metadata for precommit (PR) flow')
 .option('--ci', 'whether the current build is during CI flow')
+.option('--background', 'run build process as background')
+.option('--wait', 'wait indefinitely for the background build to finish')
 .description(`build components with parameters, v1`)
 .action(async (options: BuilderCustomOptions) => {
-    if (await existingPath('.', `build.all.log`) instanceof Error) {
-        fs.writeFileSync(`build.all.log`, '');    
+    if (options.background) {
+        await setFileContent(`build.all.log`, '')
+        nohupDisown(process.argv.filter(a => a !== '--background'))
+        return
+    }
+    if (options.wait) {
+        const proc = spawn(`tail`, ['-f', '-n', '+1', 'build.all.log'], { stdio: 'inherit' })
+        proc.on('close', async code => {
+            const { data } = await getFileContent(`build.all.result.log`)
+            return process.exit(data.trim() === 'SUCCESS' ? 0 : 1)    
+        })
+        return
     }
     const exit = async (code = 0) => {
         await setFileContent(`build.all.result.log`, code === 0 ? 'SUCCESS' : 'FAILURE')
@@ -42,20 +55,11 @@ cli.command('build')
             console.log(colors.gray(`   ${optionName}: ${colors.cyan(options[optionName])}`))    
         }
         console.log(colors.gray('}'))
-        if (options.workingDirectory) {
-            const newDir = pathlib.join(process.cwd(), options.workingDirectory)
-            try {
-                process.chdir(newDir)
-            } catch (e) {
-                console.error(`ERROR; unable to change directory to '${options.workingDirectory}' (${newDir})`)
-                return exit(1)
-            }
-        }
         const configChain = await findBuilderConfig()
         const activeConfig = getActiveBuilderConfig(configChain)
         await resolveBuildEnvironment(activeConfig, options)
         activeConfig.start_time = Date.now()
-        const [ compoMap, fileErrors ] = await getComponentsMap();
+        const [ compoMap, fileErrors ] = await getComponentsMap(options);
         if (fileErrors) {
             for (const err of fileErrors) { console.error(colors.red(err.e)); } return exit(1)
         }
