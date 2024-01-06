@@ -49,7 +49,7 @@ fi
 bash $SHARED_DIR/cicd/lib/shell/toolchain/github-cli/gh.sh
 
 BUILDER_CLI_PACKAGE="intel-build"
-REQUIRED_BUILDER_VERSION='0.0.33'
+REQUIRED_BUILDER_VERSION='0.0.34'
 {
     use_nvm
     if [ ! command -v builder ] || \

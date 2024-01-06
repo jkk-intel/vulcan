@@ -34,7 +34,7 @@ export type BuilderCustomOptions = {
 }
 
 export async function killLogTail(logFile: string) {
-    const [code, stdout, stderr, e] = await runCommand(`ps -a`)
+    const [code, stdout, stderr, e] = await runCommand(`ps -e`)
     const entries = stdout.split('\n').map(a => a.trim()).filter(a => a)
     const matchedPids = entries.filter(a => a.startsWith('tail') && a.indexOf(logFile) >= 0)
                                 .map(psLine => psLine.split(' ')[0])
