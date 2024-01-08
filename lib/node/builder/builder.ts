@@ -31,6 +31,7 @@ export type BuilderCustomOptions = {
     headBranch?: string,
     prebuilt?: boolean,
     cache?: boolean,
+    pull?: boolean,
     background?: boolean,
     wait?: boolean,
     
@@ -125,6 +126,7 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                 '--pull',
                 '--push',
             )
+            if (options.pull && !compo.docker?.no_pull) { cliArgs.push('--pull'); }
             if (!options.cache || compo.no_cache) { cliArgs.push('--no-cache'); }
             const allFullImagePaths: string[] = []
 
@@ -246,8 +248,9 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                 Object.assign(buildArgsFinal, buildArgsCommon)
                 Object.assign(buildArgsFinal, buildArgsTemp)
                 Object.assign(buildArgsFinal, buildArgsOverride)
-                for (const buildArgName of Object.keys(buildArgsFinal)) {
-                    cliArgs.push('--build-arg', `${buildArgName}=${buildArgsFinal[buildArgName]}`)
+                const allBuildArgExprs: string[] = uniqueStringArray(Object.keys(buildArgsFinal).map(name => `${name}=${buildArgsFinal[name]}`)) 
+                for (const buildArgExpression of allBuildArgExprs) {
+                    cliArgs.push('--build-arg', buildArgExpression)
                 }
             }; addBuildArgs()
 
@@ -255,7 +258,9 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                 if (!stringArray(config.docker?.registry?.cache).length) {
                     return
                 }
-                const defaultCacheToOpts = 'mode=max,ignore-error=true,compression=zstd,compression-level=1,image-manifest=true'
+                const mode = compo.docker?.cache_config?.mode ?? 'max'
+                const compLevel = compo.docker?.cache_config?.compression_level ?? 3
+                const defaultCacheToOpts = `mode=${mode},ignore-error=true,compression=zstd,compression-level=${compLevel},image-manifest=true`
                 const cacheRegistries = stringArray(config.docker?.registry?.cache);
                 const cacheFromResolves: Promise<[boolean, string, string]>[] = []
                 for (const cacheRegistry of cacheRegistries) {
@@ -453,9 +458,8 @@ async function buildPrepComponent(options: BuilderCustomOptions, compoMap: Compo
         for (const depName of depNames) {
             const depNameOriginal = depName.replace(/__/g, '/')
             const depNameHyphen = depNameOriginal.replace(/_/g, '-')
-            const foundOriginal = allCompoNames.filter(a => a.name === depNameOriginal)
-            const foundHyphen = allCompoNames.filter(a => a.name === depNameHyphen)
-            if (foundOriginal.length === 0 && foundHyphen.length === 0) {
+            const found = allCompoNames.filter(a => a.name === depNameOriginal || a.name === depNameHyphen)
+            if (found.length === 0) {
                 errors.push({
                     file: dockerfileAbspath,
                     e: new Error(`ERROR; component dockerfile is using 'EXTEND_FROM_${depName}' ` +
@@ -464,7 +468,7 @@ async function buildPrepComponent(options: BuilderCustomOptions, compoMap: Compo
                 })
                 continue
             }
-            const parentCompo = [...foundOriginal,  ...foundHyphen].map(a => a.compo)[0]
+            const parentCompo = found.map(a => a.compo)[0]
             if (!parentCompo) {
                 errors.push({
                     file: dockerfileAbspath,
@@ -480,6 +484,12 @@ async function buildPrepComponent(options: BuilderCustomOptions, compoMap: Compo
         if (errors.length) {
             return
         }
+    } else {
+        errors.push({
+            file: compo.manifest_path,
+            e: new Error(`ERROR; 'builder' not specified in build manifest '${compo.manifest_path}'`)
+        })
+        return
     }
 }
 

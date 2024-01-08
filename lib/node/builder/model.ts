@@ -26,9 +26,11 @@ export interface ComponentManifest {
         image_name?: string;
         target?: string;
         debug?: boolean;
+        no_pull?: boolean;
         build_args?: {[argname: string]: string}
         build_args_inherited?: {[argname: string]: string}
         build_args_temp?: {[argname: string]: string}
+        cache_config?: DockerCacheToConfig
         build_resource?: {
             cpu?: number;
             mem?: number;
@@ -77,19 +79,22 @@ export interface BuilderConfigStandard {
             builder_pool?: string[]
         }
         build_args?: {[argname: string]: string}
-        cache_config?: {
-            /**
-             * zstd compression-level (compress speed & ratio):
-             *  - level 1: 750MB/s, 37%
-             *  - level 7: 350MB/s, 33%
-             *  - 1level 15: 60MB/s, 32%
-             *  
-             *  ...
-             * */
-            compression_level?: 1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22
-        }
+        cache_config?: DockerCacheToConfig
         registry?: DockerRegistryInfo
     }
+}
+
+type DockerCacheToConfig = {
+    /**
+     * zstd compression-level (compress speed & ratio):
+     *  - level 1: 750MB/s, 37%
+     *  - level 7: 350MB/s, 33%
+     *  - 1level 15: 60MB/s, 32%
+     *  
+     *  ...
+     * */
+    compression_level?: 1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|21|22
+    mode?: 'min' | 'max'
 }
 
 type DockerRegistryInfo = {
