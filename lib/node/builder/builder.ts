@@ -420,60 +420,58 @@ async function buildPrepComponent(options: BuilderCustomOptions, compoMap: Compo
         if (config.docker?.build_args) {
             compo.docker.build_args_inherited = copy(config.docker?.build_args)
         }
-        if (compo.depends_on?.length) {
-            let linesWithExtendFrom: string[] = []
-            let beforeFrom = true
-            const lines = data.split('\n')
-            let lineNumber = 0
-            for (const line of lines) {
-                ++lineNumber
-                if (line.startsWith('FROM')) {
-                    // only interested in ARGs before FROM
-                    beforeFrom = false
-                    continue
-                }
-                if (line.indexOf('ARG EXTEND_FROM_') >= 0) {
-                    if (beforeFrom) {
-                        linesWithExtendFrom.push(line)    
-                    } else {
-                        errors.push({
-                            file: dockerfileAbspath,
-                            e: new Error(`ERROR; Dockerfile 'ARG EXTEND_FROM' usage cannot exist after the first FROM directive` +
-                                        ` (near '${line}' at ${dockerfileAbspath}:${lineNumber})`)
-                        })
-                    }
-                }
+        let linesWithExtendFrom: string[] = []
+        let beforeFrom = true
+        const lines = data.split('\n')
+        let lineNumber = 0
+        for (const line of lines) {
+            ++lineNumber
+            if (line.startsWith('FROM')) {
+                // only interested in ARGs before FROM
+                beforeFrom = false
+                continue
             }
-            const depNames = linesWithExtendFrom.map(line => line.replace('ARG EXTEND_FROM_', '').split('=')[0].split(' ')[0])
-            for (const depName of depNames) {
-                const depNameOriginal = depName.replace(/__/g, '/')
-                const depNameHyphen = depNameOriginal.replace(/_/g, '-')
-                if (compo.depends_on.indexOf(depNameOriginal) === -1 && compo.depends_on.indexOf(depNameHyphen) === -1) {
+            if (line.indexOf('ARG EXTEND_FROM_') >= 0) {
+                if (beforeFrom) {
+                    linesWithExtendFrom.push(line)    
+                } else {
                     errors.push({
                         file: dockerfileAbspath,
-                        e: new Error(`ERROR; component dockerfile is using 'EXTEND_FROM_${depName}' ` +
-                                     `but the parent component '${depNameOriginal}' is missing from dependency declaration in ` +
-                                     `'depends_on' in the component manifest '${compo.manifest_path}'`)
+                        e: new Error(`ERROR; Dockerfile 'ARG EXTEND_FROM' usage cannot exist after the first FROM directive` +
+                                    ` (near '${line}' at ${dockerfileAbspath}:${lineNumber})`)
                     })
-                    continue
                 }
-                if (!compo.docker.build_args_temp) { compo.docker.build_args_temp = {} }
-                const parentCompoName = compo.depends_on.indexOf(depNameOriginal) >= 0 ? depNameOriginal : depNameHyphen
-                const parentCompo: ComponentManifest = findParentComponentByName(parentCompoName, compoMap)
-                if (!parentCompo) {
-                    errors.push({
-                        file: dockerfileAbspath,
-                        e: new Error(`ERROR; component dockerfile is using 'EXTEND_FROM_${depName}' ` +
-                                     `but the parent component '${parentCompoName}' not found on the component map ` + 
-                                     `while parsing '${compo.manifest_path}'`)
-                    })
-                    continue
-                }
-                compo.docker.build_args_temp[`EXTEND_FROM_${depName}`] = getEphemeralComponentFullpath(parentCompo, config)
             }
-            if (errors.length) {
-                return
+        }
+        const depNames = linesWithExtendFrom.map(line => line.replace('ARG EXTEND_FROM_', '').split('=')[0].split(' ')[0])
+        for (const depName of depNames) {
+            const depNameOriginal = depName.replace(/__/g, '/')
+            const depNameHyphen = depNameOriginal.replace(/_/g, '-')
+            if (compo.depends_on.indexOf(depNameOriginal) === -1 && compo.depends_on.indexOf(depNameHyphen) === -1) {
+                errors.push({
+                    file: dockerfileAbspath,
+                    e: new Error(`ERROR; component dockerfile is using 'EXTEND_FROM_${depName}' ` +
+                                    `but the parent component '${depNameOriginal}' is missing from dependency declaration in ` +
+                                    `'depends_on' in the component manifest '${compo.manifest_path}'`)
+                })
+                continue
             }
+            if (!compo.docker.build_args_temp) { compo.docker.build_args_temp = {} }
+            const parentCompoName = compo.depends_on.indexOf(depNameOriginal) >= 0 ? depNameOriginal : depNameHyphen
+            const parentCompo: ComponentManifest = findParentComponentByName(parentCompoName, compoMap)
+            if (!parentCompo) {
+                errors.push({
+                    file: dockerfileAbspath,
+                    e: new Error(`ERROR; component dockerfile is using 'EXTEND_FROM_${depName}' ` +
+                                    `but the parent component '${parentCompoName}' not found on the component map ` + 
+                                    `while parsing '${compo.manifest_path}'`)
+                })
+                continue
+            }
+            compo.docker.build_args_temp[`EXTEND_FROM_${depName}`] = getEphemeralComponentFullpath(parentCompo, config)
+        }
+        if (errors.length) {
+            return
         }
     }
 }

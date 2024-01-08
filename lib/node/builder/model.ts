@@ -33,7 +33,13 @@ export interface ComponentManifest {
             cpu?: number;
             mem?: number;
         };
-        additionalRegistry?: DockerRegistryInfo
+        additional?: {
+            tags?: {
+                temp?: string | string[]
+                precommit?: string | string[]
+                postcommit?: string | string[]
+            }
+        }
     };
     shell?: {
         build_script?: string
