@@ -399,7 +399,7 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
     }
 }
 
-async function buildPrepComponent(options: BuilderCustomOptions, compoMap: ComponentManifestMap, compo: ComponentManifest, configChain: BuilderConfigChain, errors?: FileError[]) {
+async function buildPrepComponent(options: BuilderCustomOptions, compoMap: ComponentManifestMap, compo: ComponentManifest, configChain: BuilderConfigChain, errors: FileError[]) {
     if (!errors) { errors = []; }
     const config = getActiveBuilderConfig(configChain)
     if (compo.builder === 'docker') {
@@ -446,11 +446,16 @@ async function buildPrepComponent(options: BuilderCustomOptions, compoMap: Compo
                 }
             }
         }
-        const depNames = linesWithExtendFrom.map(line => line.replace('ARG EXTEND_FROM_', '').split('=')[0].split(' ')[0])
+        const allCompoRegularNames = Object.keys(compoMap).map(fullname => ({ name: compoMap[fullname].name, compo: compoMap[fullname] }))
+        const allCompoFullNames = Object.keys(compoMap).map(fullname => ({ name: compoMap[fullname].fullname, compo: compoMap[fullname] }))
+        const allCompoNames = [...allCompoRegularNames, ...allCompoFullNames]
+        const depNames = linesWithExtendFrom.map(line => line.replace('ARG EXTEND_FROM_', '').split('=')[0].split(' ')[0].toLowerCase())
         for (const depName of depNames) {
             const depNameOriginal = depName.replace(/__/g, '/')
             const depNameHyphen = depNameOriginal.replace(/_/g, '-')
-            if (compo.depends_on.indexOf(depNameOriginal) === -1 && compo.depends_on.indexOf(depNameHyphen) === -1) {
+            const foundOriginal = allCompoNames.filter(a => a.name === depNameOriginal)
+            const foundHyphen = allCompoNames.filter(a => a.name === depNameHyphen)
+            if (foundOriginal.length === 0 && foundHyphen.length === 0) {
                 errors.push({
                     file: dockerfileAbspath,
                     e: new Error(`ERROR; component dockerfile is using 'EXTEND_FROM_${depName}' ` +
@@ -459,18 +464,17 @@ async function buildPrepComponent(options: BuilderCustomOptions, compoMap: Compo
                 })
                 continue
             }
-            if (!compo.docker.build_args_temp) { compo.docker.build_args_temp = {} }
-            const parentCompoName = compo.depends_on.indexOf(depNameOriginal) >= 0 ? depNameOriginal : depNameHyphen
-            const parentCompo: ComponentManifest = findParentComponentByName(parentCompoName, compoMap)
+            const parentCompo = [...foundOriginal,  ...foundHyphen].map(a => a.compo)[0]
             if (!parentCompo) {
                 errors.push({
                     file: dockerfileAbspath,
                     e: new Error(`ERROR; component dockerfile is using 'EXTEND_FROM_${depName}' ` +
-                                    `but the parent component '${parentCompoName}' not found on the component map ` + 
+                                    `but the parent component '${parentCompo.name}' not found on the component map ` + 
                                     `while parsing '${compo.manifest_path}'`)
                 })
                 continue
             }
+            if (!compo.docker.build_args_temp) { compo.docker.build_args_temp = {} }
             compo.docker.build_args_temp[`EXTEND_FROM_${depName}`] = getEphemeralComponentFullpath(parentCompo, config)
         }
         if (errors.length) {
@@ -486,8 +490,12 @@ export async function getComponentsMap(options: BuilderCustomOptions): Promise<G
     const manifestPatterns = [
         `./**/*.component.yml`,
         `./**/*.component.yaml`,
+        `./**/*.compo.yml`,
+        `./**/*.compo.yaml`,
         `./**/component.*.yml`,
         `./**/component.*.yaml`,
+        `./**/compo.*.yml`,
+        `./**/compo.*.yaml`,
         `./**/*.builder.yml`,
         `./**/*.builder.yaml`,
     ]
@@ -507,16 +515,18 @@ export async function getComponentsMap(options: BuilderCustomOptions): Promise<G
             }
             compo.name_hyphen = compo.name.replace(/_/g, '-')
             if (!compo.project) { compo.project = ''; }
-            if (notSet(compo.timeout)) { compo.timeout = 1800; }
             compo.fullname = compo.project ? `${compo.project}/${compo.name_hyphen}` : compo.name_hyphen
             compo.name_safe = compo.fullname.replace(/\//g, '__').toLowerCase()
             if (map[compo.fullname]) {
-                errors.push({file, e: new Error(
-                    `ERROR: component name '${compo.fullname}' exists already\n    at ${file} ` +
-                    `(registered by ${map[compo.fullname].manifest_path})`)})
+                if (file !== map[compo.fullname].manifest_path) {
+                    errors.push({file, e: new Error(
+                        `ERROR: component name '${compo.fullname}' exists already\n    at ${file} ` +
+                        `(registered by ${map[compo.fullname].manifest_path})`)})
+                }
                 return
             }
             map[compo.fullname] = compo
+            if (notSet(compo.timeout)) { compo.timeout = 1800; }
             const manigestRelpath = pathlib.relative(process.cwd(), compo.manifest_path)
             options.log(colors.gray(`\    found component ${colors.green(compo.name)} (${manigestRelpath})`))
             if (compo.depends_on) { compo.depends_on = stringArray(compo.depends_on) }
@@ -534,7 +544,6 @@ export async function getComponentsMap(options: BuilderCustomOptions): Promise<G
 
 export function getDependencyErrors(map: ComponentManifestMap) {
     const errors: FileError[] = [];
-    console.log(Object.keys(map))
     for (const fullname of Object.keys(map)) {
         const compo = map[fullname];
         if (!compo.depends_on) { continue; }
