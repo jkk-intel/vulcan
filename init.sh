@@ -49,11 +49,10 @@ fi
 bash $SHARED_DIR/cicd/lib/shell/toolchain/github-cli/gh.sh
 
 BUILDER_CLI_PACKAGE="intel-build"
-REQUIRED_BUILDER_VERSION='0.0.42'
+REQUIRED_BUILDER_VERSION='0.0.43'
 {
     use_nvm
-    if [ ! command -v builder ] || \
-       [ "$(builder --version)" != "$REQUIRED_BUILDER_VERSION" ]; then
+    if ! [ -x "$(command -v builder)" ] || [ "$(builder --version)" != "$REQUIRED_BUILDER_VERSION" ]; then
         npm i -g $BUILDER_CLI_PACKAGE@$REQUIRED_BUILDER_VERSION
     fi
 } >/dev/null 2>&1

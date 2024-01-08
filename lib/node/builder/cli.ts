@@ -45,6 +45,8 @@ cli.command('build')
     }
     options.logStream = fs.createWriteStream(`build.all.log`);
     options.log = (str: string) => { console.log(str); options.logStream.write(str + '\n'); }
+    options.error = (str: string) => { console.error(str); options.logStream.write(str + '\n'); }
+    options.warn = (str: string) => { console.warn(str); options.logStream.write(str + '\n'); }
     const exit = async (code = 0) => {
         await setFileContent(`build.all.result.log`, code === 0 ? 'SUCCESS' : 'FAILURE')
         await killLogTail(`build.all.log`)
@@ -52,39 +54,43 @@ cli.command('build')
         setTimeout(() => process.exit(code), 500) as any
     }
     try {
-        console.log('')
-        console.log(colors.gray(`build invoked with following options: {`))
+        options.log('')
+        options.log(colors.gray(`build invoked with following options: {`))
         for (const optionName of Object.keys(options)) {
-            console.log(colors.gray(`   ${optionName}: ${colors.cyan(options[optionName])}`))    
+            const paramType = typeof options[optionName]
+            if (paramType !== 'boolean' && paramType !== 'string') {
+                continue
+            }
+            options.log(colors.gray(`   ${optionName}: ${colors.cyan(options[optionName])}`))
         }
-        console.log(colors.gray('}'))
+        options.log(colors.gray('}'))
         const configChain = await findBuilderConfig()
         const activeConfig = getActiveBuilderConfig(configChain)
         await resolveBuildEnvironment(activeConfig, options)
         activeConfig.start_time = Date.now()
         const [ compoMap, fileErrors ] = await getComponentsMap(options);
         if (fileErrors) {
-            for (const err of fileErrors) { console.error(colors.red(err.e)); } return exit(1)
+            for (const err of fileErrors) { options.error(colors.red(err.e)); } return exit(1)
         }
         const depErrors  = getDependencyErrors(compoMap);
         if (depErrors) {
-            for (const err of depErrors) { console.error(colors.red(err.e)); } return exit(1)
+            for (const err of depErrors) { options.error(colors.red(err.e)); } return exit(1)
         }
         const buildGroups = orderBuildsInGroups(compoMap);
         const hashCalculationErrors = await calculateComponentHashes(options, compoMap, buildGroups)
         if (hashCalculationErrors) {
-            for (const err of hashCalculationErrors) { console.error(colors.red(err.e)); } return exit(1)
+            for (const err of hashCalculationErrors) { options.error(colors.red(err.e)); } return exit(1)
         }
         if (!options.tag) {
             options.tag = `_tmp-${crypto.randomBytes(8).toString('hex')}`
-            console.warn(colors.yellow(`WARNING; --tag option was not given for the build, using temporary tag '${options.tag}'`))
+            options.warn(colors.yellow(`WARNING; --tag option was not given for the build, using temporary tag '${options.tag}'`))
         }
         const buildErrors = await buildAllGroups(options, compoMap, buildGroups, configChain)
         if (buildErrors) {
-            for (const err of buildErrors) { console.error(colors.red(err.e)); } return exit(1)
+            for (const err of buildErrors) { options.error(colors.red(err.e)); } return exit(1)
         }
     } catch (e) {
-        console.error(colors.red(e));
+        options.error(colors.red(e));
         return exit(1)
     }
     exit(0)

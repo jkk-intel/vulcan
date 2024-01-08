@@ -33,8 +33,11 @@ export type BuilderCustomOptions = {
     cache?: boolean,
     background?: boolean,
     wait?: boolean,
+    
     logStream?: fs.WriteStream,
     log?: (line: string) => any,
+    error?: (line: string) => any,
+    warn?: (line: string) => any,
 }
 
 export async function killLogTail(logFile: string) {
@@ -237,9 +240,9 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
 
             const buildArgsFinal: { [argname: string]: string; } = {}
             const addBuildArgs = () => {
-                const buildArgsCommon = copy(compo.docker?.build_args_inherited) ?? {}
-                const buildArgsTemp = copy(compo.docker?.build_args_temp) ?? {}
-                const buildArgsOverride = copy(compo.docker?.build_args) ?? {}
+                const buildArgsCommon = copy(compo.docker?.build_args_inherited, options) ?? {}
+                const buildArgsTemp = copy(compo.docker?.build_args_temp, options) ?? {}
+                const buildArgsOverride = copy(compo.docker?.build_args, options) ?? {}
                 Object.assign(buildArgsFinal, buildArgsCommon)
                 Object.assign(buildArgsFinal, buildArgsTemp)
                 Object.assign(buildArgsFinal, buildArgsOverride)
@@ -418,7 +421,7 @@ async function buildPrepComponent(options: BuilderCustomOptions, compoMap: Compo
         }
         compo.docker.image_name = compo.docker.image_name.toLowerCase()
         if (config.docker?.build_args) {
-            compo.docker.build_args_inherited = copy(config.docker?.build_args)
+            compo.docker.build_args_inherited = copy(config.docker?.build_args, options)
         }
         let linesWithExtendFrom: string[] = []
         let beforeFrom = true
@@ -531,6 +534,7 @@ export async function getComponentsMap(options: BuilderCustomOptions): Promise<G
 
 export function getDependencyErrors(map: ComponentManifestMap) {
     const errors: FileError[] = [];
+    console.log(Object.keys(map))
     for (const fullname of Object.keys(map)) {
         const compo = map[fullname];
         if (!compo.depends_on) { continue; }
@@ -607,9 +611,6 @@ export async function calculateComponentHashes(options: BuilderCustomOptions, co
     const components: { filteredSources: GlobResult, manifest: ComponentManifest }[] = []
     const allErrors: FileError[] = []
     buildGroups.forEach(buildGroup => buildGroup.forEach(compo => {
-        if (!compo.src || compo.src.length === 0) {
-            compo.src === '.'
-        }
         compo.src = stringArray(compo.src)
         components.push({
             filteredSources: null,
@@ -719,7 +720,13 @@ export async function calculateComponentHashes(options: BuilderCustomOptions, co
                 continue
             }
             const [ path, pathStat ] = gitObjectResult.value
-            if (pathStat.isDirectory()) {
+            if (!pathStat) {
+                allErrors.push({
+                    file: null,
+                    e: new Error(`src path '${path}' not found for '${compo.name}' at ${compo.manifest_path}`),
+                })
+                continue
+            } else if (pathStat.isDirectory()) {
                 const errors: FileError[] = []
                 dirProms.push(getGlobMatched(options, compo.dir, [`${path}/**/*`], compo.ignore, errors))
             } else {
@@ -1042,14 +1049,18 @@ function defaultFalse(v: any) {
     return !!v
 }
 
-function copy<T = any>(target: T) {
+function copy<T = any>(target: T, options?: BuilderCustomOptions ) {
     if (!target) {
         return null
     }
     try {
         return JSON.parse(JSON.stringify(target)) as T
     } catch (e) {
-        console.error(e)
+        if (options) {
+            options.error(e)
+        } else {
+            console.error(e)    
+        }
         return null
     }
 }
