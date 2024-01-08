@@ -485,6 +485,8 @@ export async function getComponentsMap(options: BuilderCustomOptions): Promise<G
     const manifestPatterns = [
         `./**/*.component.yml`,
         `./**/*.component.yaml`,
+        `./**/component.*.yml`,
+        `./**/component.*.yaml`,
         `./**/*.builder.yml`,
         `./**/*.builder.yaml`,
     ]
