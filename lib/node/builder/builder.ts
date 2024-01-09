@@ -120,7 +120,11 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                 if (resolved) { return; }
                 resolved = true
                 resolve(v)
-                logFile.write(`\nSUCCESS\n`)
+                if (v === true) {
+                    logFile.write(`\nSUCCESS\n`)    
+                } else if (v === false) {
+                    logFile.write(`\nFAILURE\n`)
+                }
             }
 
             const cliArgs: string[] = []
@@ -240,7 +244,7 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                                         ` has been published before, skipping building.`;
                     options.log(skipMessage)
                     announcePushes()
-                    logFile.write(`${skipMessage}\n\nSUCCESS\n`)
+                    logFile.write(`${skipMessage}\n\nSKIPPED\n`)
                     return tryResolve(null)
                 }
             }
