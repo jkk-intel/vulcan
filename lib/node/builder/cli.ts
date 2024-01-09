@@ -3,7 +3,6 @@ import { getDependencyErrors, getComponentsMap, orderBuildsInGroups, calculateCo
 import { globalRoot } from 'ts-basis';
 import { spawn } from 'child_process'
 import * as crypto from 'crypto';
-import * as pathlib from 'path'
 import * as fs from 'fs'
 import { v4 as uuidv4 } from 'uuid'
 import packageJSON from '../package.json'
@@ -38,10 +37,17 @@ cli.command('build')
     }
     if (options.wait) {
         const proc = spawn(`tail`, ['-f', '-n', '+1', 'build.all.log'], { stdio: 'inherit' })
-        proc.on('close', async code => {
+        proc.on('close', async () => {
             const { data } = await getFileContent(`build.all.result.log`)
-            return process.exit(data.trim() === 'SUCCESS' ? 0 : 1)    
+            return process.exit(data.trim() === 'SUCCESS' ? 0 : 1)
         })
+        setInterval(async () => {
+            const pathOrError = await existingPath('./', 'build.all.result.log')
+            if(typeof pathOrError === 'string') {
+                const { data } = await getFileContent(`build.all.result.log`)
+                return process.exit(data.trim() === 'SUCCESS' ? 0 : 1)
+            }
+        }, 1000)
         return
     }
     options.logStream = fs.createWriteStream(`build.all.log`);

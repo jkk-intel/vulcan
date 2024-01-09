@@ -116,7 +116,12 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
             const streamFile = `build.${compo.name_safe}.log`
             const logFile = fs.createWriteStream(streamFile)
             let resolved = false
-            const tryResolve = (v: boolean) => resolved ? null : (resolved = true) && resolve(v)
+            const tryResolve = (v: boolean) => {
+                if (resolved) { return; }
+                resolved = true
+                resolve(v)
+                logFile.write(`\nSUCCESS\n`)
+            }
 
             const cliArgs: string[] = []
             if (compo.docker.debug) { cliArgs.push('-D') }
@@ -235,7 +240,7 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                                         ` has been published before, skipping building.`;
                     options.log(skipMessage)
                     announcePushes()
-                    logFile.write(`${skipMessage}\n`)
+                    logFile.write(`${skipMessage}\n\nSUCCESS\n`)
                     return tryResolve(null)
                 }
             }
@@ -368,7 +373,12 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                 } else {
                     announcePushes()
                 }
-                tryResolve(isSuccessful)
+                if (resolved) {
+                    logFile.write(isSuccessful ? `\nSUCCESS\n` : `\nFAILURE\n`)
+                    return
+                } else {
+                    tryResolve(isSuccessful)
+                }
             }
 
             echoLine(`${colors.green('STARTED')} '${compo.fullname}'`)
