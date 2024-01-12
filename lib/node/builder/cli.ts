@@ -32,6 +32,8 @@ cli.command('build')
 .action(async (options: BuilderCustomOptions) => {
     if (options.background) {
         await setFileContent(`build.all.log`, '')
+        spawn(`rm`, [`-rf`, `build.all.result.log`])
+        spawn(`rm`, [`-rf`, `build.all.published.log`])
         nohupDisown(process.argv.filter(a => a !== '--background' && a !== '--wait'))
         return
     }
@@ -42,8 +44,8 @@ cli.command('build')
             return process.exit(data.trim() === 'SUCCESS' ? 0 : 1)
         })
         setInterval(async () => {
-            const pathOrError = await existingPath('./', 'build.all.result.log')
-            if(typeof pathOrError === 'string') {
+            const { file, data } = await getFileContent('build.all.result.log')
+            if(typeof data === 'string') {
                 const { data } = await getFileContent(`build.all.result.log`)
                 return process.exit(data.trim() === 'SUCCESS' ? 0 : 1)
             }

@@ -114,6 +114,7 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
         return promise<boolean>(async resolve => {
             const startTime = Date.now()
             const streamFile = `build.${compo.name_safe}.log`
+            const publishedLogFile = `build.all.published.log`
             const logFile = fs.createWriteStream(streamFile)
             let resolved = false
             const tryResolve = (v: boolean) => {
@@ -222,6 +223,7 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
             }
             const pushedPaths = allFullImagePaths.map(img => `    ${colors.green(img)}`).join('\n')
             const announcePushes = () => {
+                appendFileContent(publishedLogFile, allFullImagePaths.join('\n') + '\n')
                 rectifyOutputSection()
                 options.log(`Successfully published ${colors.cyan(compo.fullname)} to:\n${pushedPaths}\n`)
             }
@@ -465,12 +467,13 @@ async function buildPrepComponent(options: BuilderCustomOptions, compoMap: Compo
                 }
             }
         }
-        const allCompoRegularNames = Object.keys(compoMap).map(fullname => ({ name: compoMap[fullname].name, compo: compoMap[fullname] }))
-        const allCompoFullNames = Object.keys(compoMap).map(fullname => ({ name: compoMap[fullname].fullname, compo: compoMap[fullname] }))
+        const formatName = (name: string) => name.toLowerCase().replace(/__/g, '/')
+        const allCompoRegularNames = Object.keys(compoMap).map(fullname => ({ name: formatName(compoMap[fullname].name), compo: compoMap[fullname] }))
+        const allCompoFullNames = Object.keys(compoMap).map(fullname => ({ name: formatName(compoMap[fullname].fullname), compo: compoMap[fullname] }))
         const allCompoNames = [...allCompoRegularNames, ...allCompoFullNames]
-        const depNames = linesWithExtendFrom.map(line => line.replace('ARG EXTEND_FROM_', '').split('=')[0].split(' ')[0].toLowerCase())
+        const depNames = linesWithExtendFrom.map(line => line.replace('ARG EXTEND_FROM_', '').split('=')[0].split(' ')[0])
         for (const depName of depNames) {
-            const depNameOriginal = depName.replace(/__/g, '/')
+            const depNameOriginal = depName.toLowerCase().replace(/__/g, '/')
             const depNameHyphen = depNameOriginal.replace(/_/g, '-')
             const found = allCompoNames.filter(a => a.name === depNameOriginal || a.name === depNameHyphen)
             if (found.length === 0) {
@@ -975,6 +978,19 @@ export function setFileContent(file: string, content: string, errors?: FileError
     if (!errors) { errors = []; }
     return promise<boolean>(async (resolve) => {
         fs.writeFile(file, content, 'utf8', e => {
+            if (e) {
+                errors.push({ file, e })
+                return resolve(false)
+            }
+            return resolve(true)
+        });
+    });
+}
+
+export function appendFileContent(file: string, content: string, errors?: FileError[]) {
+    if (!errors) { errors = []; }
+    return promise<boolean>(async (resolve) => {
+        fs.appendFile(file, content, 'utf8', e => {
             if (e) {
                 errors.push({ file, e })
                 return resolve(false)
