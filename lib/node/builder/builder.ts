@@ -65,6 +65,7 @@ export async function buildAllGroups(options: BuilderCustomOptions, compoMap: Co
     const buildEnv = config.is_postcommit ? 'POST_COMMIT' : 'PRE_COMMIT'
     const allErrors: FileError[] = []
     const end = () => {
+        setFileContent(`build.all.map.log`, JSON.stringify(buildGroups, null, 4))
         const dur = ((Date.now() - startTime) / 1000).toFixed(1)
         options.log(`Finished in ${colors.yellow(dur + 's')}`)
         if (allErrors.length) {
@@ -115,7 +116,7 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
             const startTime = Date.now()
             const streamFile = `build.${compo.name_safe}.log`
             const publishedLogFile = `build.all.published.log`
-            const logFile = fs.createWriteStream(streamFile)
+            const logFile = fs.createWriteStream(streamFile, { flags: 'a+' })
             let resolved = false
             const tryResolve = (v: boolean) => {
                 if (resolved) { return; }
@@ -223,6 +224,8 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
             }
             const pushedPaths = allFullImagePaths.map(img => `    ${colors.green(img)}`).join('\n')
             const announcePushes = () => {
+                if (!compo.outputs) { compo.outputs = {} }
+                compo.outputs.docker_images = copy(allFullImagePaths)
                 appendFileContent(publishedLogFile, allFullImagePaths.join('\n') + '\n')
                 rectifyOutputSection()
                 options.log(`Successfully published ${colors.cyan(compo.fullname)} to:\n${pushedPaths}\n`)
@@ -800,11 +803,25 @@ export async function calculateComponentHashes(options: BuilderCustomOptions, co
             const parentCompo: ComponentManifest = findParentComponentByName(parentComponentName, compoMap)
             dependsOnShasums.push(`dependency; ${parentCompo.fullname} @${parentCompo.hash_long}`)
         })
+        const componentVariantShasums: string[] = []
+        if (compo.docker?.build_args && Object.keys(compo.docker?.build_args).length) {
+            const predefinedArgsSkip = ['HTTP_PROXY', 'HTTPS_PROXY', 'FTP_PROXY', 'NO_PROXY', 'ALL_PROXY']
+            const buildArgNames = Object.keys(compo.docker?.build_args)
+            buildArgNames.forEach(buildArgName => {
+                if (predefinedArgsSkip.indexOf(buildArgName.toUpperCase()) >= 0) { return }
+                componentVariantShasums.push(`variant; docker --build-arg ${buildArgName}=${compo.docker?.build_args[buildArgName]}`)
+            })
+        }
         const affectedBy = [
             ...dependsOnShasums,
-            ...allUniqueFiles.map((file, i) => `file; ${pathlib.relative(compo.dir, file)} @${fileShasums[i]}`)
+            ...componentVariantShasums,
+            ...allUniqueFiles.map((file, i) => `file; ${pathlib.relative(compo.dir, file)} @${fileShasums[i]}`),
         ]
-        const totalSha = shasumStringArray(compo.fullname, [...dependsOnShasums, ...fileShasums])
+        const totalSha = shasumStringArray(compo.fullname, [
+            ...dependsOnShasums,
+            ...componentVariantShasums,
+            ...fileShasums,
+        ])
         compo.affected_by = affectedBy
         compo.hash_long = totalSha
         compo.hash = `_${totalSha.slice(0, 24)}`

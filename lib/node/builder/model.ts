@@ -46,6 +46,9 @@ export interface ComponentManifest {
     shell?: {
         build_script?: string
     }
+    outputs?: {
+        docker_images?: string[] 
+    }
     prebuild_script?: string
     postbuild_script?: string
     _circular_dep_checker: ComponentManifest[];
