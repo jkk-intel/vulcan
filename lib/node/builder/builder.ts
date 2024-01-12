@@ -268,6 +268,12 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                 }
             }; addBuildArgs()
 
+            const addSecrets = () => {
+                if (!compo.docker.secret || !Object.keys(compo.docker.secret).length) { return }
+                const secretIds = Object.keys(compo.docker.secret)
+                secretIds.forEach(id => cliArgs.push('--secret', `id=${id},src=${compo.docker.secret[id]}`))
+            }; addSecrets()
+
             const addCacheOpts = async () => {
                 if (!stringArray(config.docker?.registry?.cache).length) {
                     return
@@ -806,10 +812,10 @@ export async function calculateComponentHashes(options: BuilderCustomOptions, co
         const componentVariantShasums: string[] = []
         if (compo.docker?.build_args && Object.keys(compo.docker?.build_args).length) {
             const predefinedArgsSkip = ['HTTP_PROXY', 'HTTPS_PROXY', 'FTP_PROXY', 'NO_PROXY', 'ALL_PROXY']
-            const buildArgNames = Object.keys(compo.docker?.build_args)
+            const buildArgNames = Object.keys(compo.docker?.build_args).sort((a, b) => a.localeCompare(b))
             buildArgNames.forEach(buildArgName => {
                 if (predefinedArgsSkip.indexOf(buildArgName.toUpperCase()) >= 0) { return }
-                componentVariantShasums.push(`variant; docker --build-arg ${buildArgName}=${compo.docker?.build_args[buildArgName]}`)
+                componentVariantShasums.push(`arg; docker --build-arg ${buildArgName}=${compo.docker?.build_args[buildArgName]}`)
             })
         }
         const affectedBy = [

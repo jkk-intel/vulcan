@@ -30,6 +30,9 @@ export interface ComponentManifest {
         build_args?: {[argname: string]: string}
         build_args_inherited?: {[argname: string]: string}
         build_args_temp?: {[argname: string]: string}
+        secret?: {
+            [id: string]: string
+        }
         cache_config?: DockerCacheToConfig
         build_resource?: {
             cpu?: number;
