@@ -9,12 +9,13 @@ export interface ComponentManifest {
     registry_subdir?: string;
     publish?: boolean;
     depends_on?: string[];
+    variant?: string;
     dir?: string;
     src?: string | string[];
     affected_by?: string[];
     ignore?: string[];
     info?: string
-    builder?: 'docker' | 'shell' | 'nobuild';
+    builder?: 'docker' | 'shell' | 'nobuild'
     hash?: string;
     hash_long?: string;
     timeout?: number;
@@ -38,6 +39,7 @@ export interface ComponentManifest {
             cpu?: number;
             mem?: number;
         };
+        publish_static?: OtherNamedPublishMap
         additional?: {
             tags?: {
                 temp?: string | string[]
@@ -103,6 +105,14 @@ type DockerCacheToConfig = {
     mode?: 'min' | 'max'
 }
 
+export type OtherNamedPublishMap = {
+    [regName: string]: {
+        precommit?: boolean
+        repo?: string
+        tag?: string
+    }
+}
+
 type DockerRegistryInfo = {
     temp?: string | string[]
     cache?: string | string[]
@@ -117,6 +127,7 @@ type DockerRegistryInfo = {
             target?: string | string[]
         }
     }
+    named?: { [targetName: string]: string }
 }
 
 export interface ComponentManifestMap {

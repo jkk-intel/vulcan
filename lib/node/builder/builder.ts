@@ -6,7 +6,7 @@ import * as readline from 'readline'
 import * as os from 'os'
 import { ChildProcess, ExecOptions, SpawnOptions, exec, spawn } from 'child_process'
 import { promise } from 'ts-basis'
-import { BuilderConfig, BuilderConfigChain, ComponentManifest, ComponentManifestMap, TypedBuilderConfig } from './model'
+import { BuilderConfig, BuilderConfigChain, ComponentManifest, ComponentManifestMap, OtherNamedPublishMap, TypedBuilderConfig } from './model'
 import { v4 as uuidv4 } from 'uuid'
 const fg = require('fast-glob')
 const colors = require('colors/safe')
@@ -182,7 +182,7 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
             ) {
                 const publishPaths = getPrecommitComponentPublishPaths(compo, config)
                 for (const publishPath of publishPaths) {
-                    const fullPath = `${publishPath}:${tag}`
+                    const fullPath = `${publishPath}:${getVariantTag(compo, tag)}`
                     cliArgs.push('--tag', fullPath)
                     allFullImagePaths.push(fullPath)
                 }
@@ -196,7 +196,7 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
             ) {
                 const publishPaths = getPostcommitComponentPublishPaths(compo, config)
                 for (const publishPath of publishPaths) {
-                    const fullPath = `${publishPath}:${tag}`
+                    const fullPath = `${publishPath}:${getVariantTag(compo, tag)}`
                     cliArgs.push('--tag', fullPath)
                     allFullImagePaths.push(fullPath)
                 }
@@ -207,6 +207,50 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                         allFullImagePaths.push(fullPath)
                     }
                 }
+            }
+
+            const addStaticTargetErrors: FileError[] = []
+            const addStaticTargets = () => {
+                if (!options.ci || !compo.docker?.publish_static ||
+                    !config.docker?.registry?.named || !Object.keys(config.docker?.registry?.named).length) {
+                    return
+                }
+                const otherNamedRegistries = config.docker?.registry?.named
+                const staticTargetAdd = (otherPublishTargets: OtherNamedPublishMap) => {
+                    const regNames = Object.keys(otherPublishTargets)
+                    for (const registryName of regNames) {
+                        let registry = otherNamedRegistries[registryName]
+                        if (!registry) {
+                            addStaticTargetErrors.push({
+                                file: dockerfileAbspath,
+                                e: new Error(`ERROR; registry '${registryName}' does not exist as a registered entry on `+
+                                             `builder.config.yml:(docker.registry.named) while parsing the component ` +
+                                             `manifest at ${compo.manifest_path}:(docker.publish_static.'${registryName}')`)
+                            })
+                            continue
+                        }
+                        let { repo, tag, precommit } = otherPublishTargets[registryName]
+                        if (precommit && config.is_postcommit) {
+                            continue
+                        }
+                        if (tag === null || tag === undefined) { continue }
+                        while (registry && registry.endsWith('/')) { registry = registry.slice(0, -1) }
+                        while (repo && repo.endsWith('/')) { registry = registry.slice(0, -1) }
+                        while (repo && repo.startsWith('/')) { registry = registry.slice(1) }
+                        const fullPath = `${registry}/${repo ? repo : compo.docker.image_name}:${getVariantTag(compo, tag)}`
+                        cliArgs.push('--tag', fullPath)
+                        allFullImagePaths.push(fullPath)
+                    }    
+                }
+                if (compo.docker.publish_static && Object.keys(compo.docker.publish_static).length) {
+                    staticTargetAdd(compo.docker.publish_static)
+                }
+            }; addStaticTargets()
+
+            if (addStaticTargetErrors.length) {
+                errors.push(...addStaticTargetErrors)
+                options.error(addStaticTargetErrors[0].e + '')
+                return tryResolve(false)
             }
 
             let procHeaderBase = `--------- ${compo.fullname} ----------------------`
@@ -1070,24 +1114,33 @@ function stringArray(input: string | string[] | null, passthruNull = false): str
     return input
 }
 
+function getVariantTag(compo: ComponentManifest, tag: string) {
+    const variantPart = compo.variant && compo.variant !== 'default' ? '-' + compo.variant : ''
+    return `${tag}${variantPart}`
+} 
+
 function getEphemeralComponentFullpath(compo: ComponentManifest, config: TypedBuilderConfig, tag?: string) {
-    const tempRegistry = stringArray(config.docker?.registry?.temp)[0];
-    return `${tempRegistry}/${compo.project ? compo.project + '/' : ''}${compo.docker.image_name}:${tag ?? compo.hash}`
+    const tempRegistry = stringArray(config.docker?.registry?.temp)[0]
+    const projPart = compo.project ? compo.project + '/' : ''
+    const tagFinal = getVariantTag(compo, `${tag ?? compo.hash}`)
+    return `${tempRegistry}/${projPart}${compo.docker.image_name}:${tagFinal}`
 }
 
 function getPrecommitComponentPublishPaths(compo: ComponentManifest, config: TypedBuilderConfig) {
     const registries = stringArray(config.docker?.registry?.published?.precommit?.target);
+    const projPart = compo.project ? compo.project + '/' : ''
     return registries.map(reg => {
         while (reg.endsWith('/')) { reg = reg.slice(0, -1) }
-        return `${reg}/${compo.docker.image_name}`
+        return `${reg}/${projPart}${compo.docker.image_name}`
     })
 }
 
 function getPostcommitComponentPublishPaths(compo: ComponentManifest, config: TypedBuilderConfig) {
     const registries = stringArray(config.docker?.registry?.published?.postcommit?.target);
+    const projPart = compo.project ? compo.project + '/' : ''
     return registries.map(reg => {
         while (reg.endsWith('/')) { reg = reg.slice(0, -1) }
-        return `${reg}/${compo.docker.image_name}`
+        return `${reg}/${projPart}${compo.docker.image_name}`
     })
 }
 

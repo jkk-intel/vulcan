@@ -4,4 +4,8 @@ depends_on:
   - compoN
 builder: docker
 
+docker:
+  publish_static:
+    test-registry:
+      tag: latest
 
