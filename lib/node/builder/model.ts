@@ -9,6 +9,7 @@ export interface ComponentManifest {
     registry_subdir?: string;
     publish?: boolean;
     depends_on?: string[];
+    depended_on_by?: string[];
     variant?: string;
     dir?: string;
     src?: string | string[];
@@ -21,6 +22,7 @@ export interface ComponentManifest {
     timeout?: number;
     no_cache?: boolean;
     no_prebuilt?: boolean;
+    status?: ComponentBuildStatus
     docker?: {
         context?: string;
         dockerfile?: string;
@@ -57,6 +59,27 @@ export interface ComponentManifest {
     prebuild_script?: string
     postbuild_script?: string
     _circular_dep_checker: ComponentManifest[];
+}
+
+export type ComponentBuildStatus = (
+    'waiting' | 'building' | 'redundant' | 
+    'success' | 'failure' | 'canceled' | 'skipped' |
+    'failure-upstream' | 'canceled-upstream'
+)
+
+const pendingStatuses = ['waiting', 'building']
+export function componentStatusPending(status: ComponentBuildStatus) {
+    return !status || pendingStatuses.indexOf(status) >= 0
+}
+export function componentStatusFinal(status: ComponentBuildStatus) {
+    return !componentStatusPending(status)
+}
+const continuableStatuses = ['success', 'skipped', 'redundant']
+export function componentStatusContinuable(status: ComponentBuildStatus) {
+    return status && continuableStatuses.indexOf(status) >= 0
+}
+export function componentStatusFlowStop(status: ComponentBuildStatus) {
+    return status && !componentStatusContinuable(status)
 }
 
 export type BuilderConfigChain = {

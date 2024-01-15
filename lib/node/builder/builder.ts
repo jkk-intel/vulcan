@@ -4,23 +4,35 @@ import * as pathlib from 'path'
 import * as crypto from 'crypto'
 import * as readline from 'readline'
 import * as os from 'os'
-import { ChildProcess, ExecOptions, SpawnOptions, exec, spawn } from 'child_process'
+import { ExecOptions, SpawnOptions, exec, spawn } from 'child_process'
 import { promise } from 'ts-basis'
-import { BuilderConfig, BuilderConfigChain, ComponentManifest, ComponentManifestMap, OtherNamedPublishMap, TypedBuilderConfig } from './model'
+import { BuilderConfig, BuilderConfigChain, ComponentBuildStatus, ComponentManifest, ComponentManifestMap, OtherNamedPublishMap, TypedBuilderConfig, componentStatusContinuable, componentStatusFinal, componentStatusFlowStop, componentStatusPending } from './model'
 import { v4 as uuidv4 } from 'uuid'
 const fg = require('fast-glob')
 const colors = require('colors/safe')
 
 const defaultExcludes = [
     '**/.DS_Store',
-    '**/.hash*',
     '**/node_modules',
     '**/generated-sources',
 ]
 type FileError = {file: any; e: Error; data?: any; isWarning?: boolean; };
 type GlobResult<T = string[]> = [T, FileError[]]
+const currentBuilds: {[componentFullName: string]: boolean} = {}
 let currentOutputOwner = ''
 let lastUsedBuilderIndex = -1
+const rectifyOutputSection = (compoFullName: string, options: BuilderCustomOptions) => {
+    if (currentOutputOwner !== compoFullName) {
+        currentOutputOwner = compoFullName
+        let procHeaderBase = `--------- ${compoFullName} ----------------------`
+        if (procHeaderBase.length < 80) {
+            procHeaderBase += '-'.repeat(80 - procHeaderBase.length)
+        }
+        const procHeader = `${colors.gray(procHeaderBase)}`
+        options.log('')
+        options.log(procHeader)
+    }
+}
 
 export type BuilderCustomOptions = {
     tag?: string,
@@ -39,6 +51,8 @@ export type BuilderCustomOptions = {
     log?: (line: string) => any,
     error?: (line: string) => any,
     warn?: (line: string) => any,
+
+    onFinish?: (v: boolean) => any,
 }
 
 export async function killLogTail(logFile: string) {
@@ -87,7 +101,7 @@ export async function buildAllGroups(options: BuilderCustomOptions, compoMap: Co
         options.log(colors.green((`[${'group-' + groupIndex}]`)))
         for (const compo of buildGroup) {
             const name = `${compo.name}${compo.project ? ` (${compo.project})`: ''}`
-            options.log(`    ${colors.yellow(name)}${colors.gray('@'+compo.hash.slice(1))}`)
+            options.log(`    ${colors.yellow(name)} ${colors.gray('@'+compo.hash.slice(1))}`)
         }
     }
     options.log('')
@@ -97,14 +111,55 @@ export async function buildAllGroups(options: BuilderCustomOptions, compoMap: Co
         if (allErrors.length) {
             return end()
         }
-        const groupBuildProcesses = buildGroup.map(compoManifest => buildComponent(options, compoMap, compoManifest, configChain, allErrors))
-        await Promise.allSettled(groupBuildProcesses)
-        if (allErrors.length) {
-            return end()
-        }
-        options.log('')
     }
+    const elapsed = () => {
+        const dur = Math.floor((Date.now() - startTime)/ 1000)
+        const date = new Date(null);
+        date.setSeconds(dur);
+        return `[${date.toISOString().slice(11, 19)}]`;
+    }
+    const ongoingBuildsAnnounceInterval = 15000
+    const ongoingBuildsAnnouncer = setInterval(() => {
+        rectifyOutputSection('[ BUILD CONTROLLER ]', options)
+        options.log(`${elapsed()} in progress ...  ${Object.keys(currentBuilds).join(' ')}`)
+    }, ongoingBuildsAnnounceInterval)
+    const firstGroup = buildGroups[0]
+    if (firstGroup) {
+        await Promise.allSettled(firstGroup.map(compo => {
+            return tryBuildComponentAndDownstream(options, compoMap, compo, configChain, allErrors)
+        }))
+    }
+    options.log('')
+    clearInterval(ongoingBuildsAnnouncer)
     return end()
+}
+
+async function tryBuildComponentAndDownstream(options: BuilderCustomOptions, compoMap: ComponentManifestMap, compo: ComponentManifest, configChain: BuilderConfigChain, errors?: FileError[]) {
+    if (!componentStatusPending(compo.status)) {
+        return
+    }
+    const dependencies = compo.depends_on ?? []
+    const upstreamAllDone = dependencies.filter(upstreamCompoName => componentStatusPending(compoMap[upstreamCompoName].status)).length === 0
+    if (!upstreamAllDone) {
+        return
+    }
+    const upstreamStatuses = dependencies.map(upstreamCompoName => compoMap[upstreamCompoName].status)
+    const downstreamContinue = upstreamStatuses.filter(status => componentStatusFlowStop(status)).length === 0
+    if (!downstreamContinue) {
+        return
+    }
+    currentBuilds[compo.fullname] = true
+    compo.status = 'building'
+    await buildComponent(options, compoMap, compo, configChain, errors)
+    delete currentBuilds[compo.fullname]
+    const downstreams = compo.depended_on_by ?? []
+    await Promise.allSettled(downstreams.map(downstreamCompoName => {
+        const downstreamCompo = compoMap[downstreamCompoName]
+        return tryBuildComponentAndDownstream(options, compoMap, downstreamCompo, configChain, errors)
+    }))
+    if (Object.keys(currentBuilds).length === 0) {
+        options.onFinish?.(errors.length === 0)
+    }
 }
 
 function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManifestMap, compo: ComponentManifest, configChain: BuilderConfigChain, errors?: FileError[]) {
@@ -112,21 +167,32 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
     const { tag } = options
     const config = getActiveBuilderConfig(configChain)
     if (compo.builder === 'docker') {
-        return promise<boolean>(async resolve => {
+        return promise<ComponentBuildStatus>(async resolve => {
             const startTime = Date.now()
             const streamFile = `build.${compo.name_safe}.log`
             const publishedLogFile = `build.all.published.log`
             const logFile = fs.createWriteStream(streamFile, { flags: 'a+' })
             let resolved = false
-            const tryResolve = (v: boolean) => {
+            const tryResolve = (status: ComponentBuildStatus) => {
                 if (resolved) { return; }
                 resolved = true
-                resolve(v)
-                if (v === true) {
-                    logFile.write(`\nSUCCESS\n`)    
-                } else if (v === false) {
-                    logFile.write(`\nFAILURE\n`)
+                try {
+                    compo.status = status
+                    if (status === 'success') {
+                        logFile.write(`\nSUCCESS\n`)
+                    } else if (status === 'failure') {
+                        logFile.write(`\nFAILURE\n`)
+                    } else if (status === 'canceled') {
+                        logFile.write(`\nCANCELED\n`)
+                    } else if (status === 'redundant') {
+
+                    } else {
+
+                    }
+                } catch (e) {
+                    console.error(e)
                 }
+                resolve(status)
             }
 
             const cliArgs: string[] = []
@@ -250,28 +316,15 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
             if (addStaticTargetErrors.length) {
                 errors.push(...addStaticTargetErrors)
                 options.error(addStaticTargetErrors[0].e + '')
-                return tryResolve(false)
+                return tryResolve('failure')
             }
 
-            let procHeaderBase = `--------- ${compo.fullname} ----------------------`
-            if (procHeaderBase.length < 80) {
-                procHeaderBase += '-'.repeat(80 - procHeaderBase.length)
-            }
-            const procHeader = `${colors.gray(procHeaderBase)}`
-            const sectionSwitchPending = () => currentOutputOwner !== procHeader
-            const rectifyOutputSection = () => {
-                if (sectionSwitchPending()) {
-                    currentOutputOwner = procHeader
-                    options.log('')
-                    options.log(procHeader)
-                }
-            }
             const pushedPaths = allFullImagePaths.map(img => `    ${colors.green(img)}`).join('\n')
             const announcePushes = () => {
                 if (!compo.outputs) { compo.outputs = {} }
                 compo.outputs.docker_images = copy(allFullImagePaths)
                 appendFileContent(publishedLogFile, allFullImagePaths.join('\n') + '\n')
-                rectifyOutputSection()
+                rectifyOutputSection(compo.fullname, options)
                 options.log(`Successfully published ${colors.cyan(compo.fullname)} to:\n${pushedPaths}\n`)
             }
 
@@ -287,14 +340,14 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                 fs.unlink(tmpfile, () => {})
                 const prebuiltExists = prebuiltResult === 0
                 if (prebuiltExists) {
-                    rectifyOutputSection()
+                    rectifyOutputSection(compo.fullname, options)
                     const skipMessage = `${colors.yellow(`[PREBUILT]`)} `+
                                         `${colors.cyan(compo.fullname)}${colors.gray('@'+compo.hash.slice(1))}` +
                                         ` has been published before, skipping building.`;
                     options.log(skipMessage)
                     announcePushes()
-                    logFile.write(`${skipMessage}\n\nSKIPPED\n`)
-                    return tryResolve(null)
+                    logFile.write(`${skipMessage}\n\nSKIPPED\n(REDUNDANT; PREBUILT EXISTS)\n`)
+                    return tryResolve('redundant')
                 }
             }
 
@@ -344,7 +397,7 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                     }
                     const [imageExists, imagePath, stderr] = cacheLookUpSettled.value
                     if (!imageExists) {
-                        rectifyOutputSection()
+                        rectifyOutputSection(compo.fullname, options)
                         options.log(colors.gray(`[CACHE_MISS] cache image not found: ${stderr.trim().split('\n')[0]}`))
                         continue
                     }
@@ -379,7 +432,7 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
             const isAppErrorLine = (line: string) => { const pos = line.toLowerCase().indexOf('error:'); return pos >= 0 && pos < 10; }
             const shouldIgnore = (line: string) => line.indexOf(' registry cache ') >= 0
             const echoLine = (line: string, isError = false) => {
-                rectifyOutputSection()
+                rectifyOutputSection(compo.fullname, options)
                 if (isError) {
                     options.log(colors.red(`${elapsed()}      ${line}    `))
                 } else {
@@ -436,7 +489,7 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                     logFile.write(isSuccessful ? `\nSUCCESS\n` : `\nFAILURE\n`)
                     return
                 } else {
-                    tryResolve(isSuccessful)
+                    tryResolve(isSuccessful ? 'success' : 'failure')
                 }
             }
 
@@ -469,6 +522,11 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                 finishProc(code)
             })
 
+        })
+    } else {
+        return promise<boolean>(resolve => {
+            compo.status = 'success'
+            resolve(true)
         })
     }
 }
@@ -627,14 +685,22 @@ export function getDependencyErrors(map: ComponentManifestMap) {
     for (const fullname of Object.keys(map)) {
         const compo = map[fullname];
         if (!compo.depends_on) { continue; }
-        for (const depname of compo.depends_on) {
+        for (let i = 0; i < compo.depends_on.length; ++i) {
+            const depname = compo.depends_on[i]
             const depfullname = depname.indexOf('/') === -1 ? 
                                 `${compo.project ? compo.project + '/' : ''}${depname}` : depname;
+            if (depname !== depfullname) {
+                compo.depends_on[i] = depfullname
+            }
             const dep = map[depfullname];
             if (!dep) {
                 errors.push({file: compo.manifest_path, e: new Error(
                     `ERROR: dependency '${depfullname}' not found\n    at ${compo.manifest_path}`)});
                 continue;
+            }
+            if (!dep.depended_on_by) { dep.depended_on_by = [] }
+            if (dep.depended_on_by.indexOf(compo.fullname) === -1) {
+                dep.depended_on_by.push(compo.fullname)
             }
             compo._circular_dep_checker.push(dep);
         }
