@@ -359,9 +359,14 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                 Object.assign(buildArgsFinal, buildArgsCommon)
                 Object.assign(buildArgsFinal, buildArgsTemp)
                 Object.assign(buildArgsFinal, buildArgsOverride)
-                const allBuildArgExprs: string[] = uniqueStringArray(Object.keys(buildArgsFinal).map(name => `${name}=${buildArgsFinal[name]}`)) 
+                const allBuildArgExprs: string[] = uniqueStringArray(Object.keys(buildArgsFinal).map(name => `${name}=${buildArgsFinal[name]}`))
                 for (const buildArgExpression of allBuildArgExprs) {
-                    cliArgs.push('--build-arg', buildArgExpression)
+                    const { expr: buildArgWithEnvSubst, e } = envSubst(buildArgExpression)
+                    if (e) {
+                        console.error(e)
+                        continue
+                    }
+                    cliArgs.push('--build-arg', buildArgWithEnvSubst)
                 }
             }; addBuildArgs()
 
@@ -1178,6 +1183,38 @@ function stringArray(input: string | string[] | null, passthruNull = false): str
         return []
     }
     return input
+}
+
+function envSubst(expr: string) {
+    let e: Error = null
+    if (e && expr.indexOf('$') === -1) {
+        return { expr, e: <null>null } as const
+    }
+    const replaceCountMax = 1000
+    for (const envVar of Object.keys(process.env)) {
+        const envVal = process.env[envVar]
+        const shortForm = `$${envVar}`
+        const longForm = `\${${envVar}}`
+        let replaceCount = 0
+        while (expr.indexOf(shortForm) >= 0 && replaceCount < replaceCountMax) {
+            expr = expr.replace(shortForm, envVal)
+            ++replaceCount
+        }
+        while (expr.indexOf(longForm) >= 0 && replaceCount < replaceCountMax) {
+            expr = expr.replace(longForm, envVal)
+            ++replaceCount
+        }
+        if (replaceCount >= replaceCountMax) {
+            e = new Error(`ERROR; max replace count ${replaceCountMax} reached ` +
+                          `while substituting '${envVar}' value of '${envVal}'`)
+            break
+        }
+    }
+    if (e) {
+        return { expr: '', e } as const
+    } else {
+        return { expr, e: <null>null } as const
+    }
 }
 
 function getVariantTag(compo: ComponentManifest, tag: string) {
