@@ -352,6 +352,7 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
             }
 
             const buildArgsFinal: { [argname: string]: string; } = {}
+            const buildArgsInfoFinal: { [secretname: string]: { expr: string, value: string } } = {}
             const addBuildArgs = () => {
                 const buildArgsCommon = copy(compo.docker?.build_args_inherited, options) ?? {}
                 const buildArgsTemp = copy(compo.docker?.build_args_temp, options) ?? {}
@@ -359,21 +360,40 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                 Object.assign(buildArgsFinal, buildArgsCommon)
                 Object.assign(buildArgsFinal, buildArgsTemp)
                 Object.assign(buildArgsFinal, buildArgsOverride)
-                const allBuildArgExprs: string[] = uniqueStringArray(Object.keys(buildArgsFinal).map(name => `${name}=${buildArgsFinal[name]}`))
-                for (const buildArgExpression of allBuildArgExprs) {
-                    const { expr: buildArgWithEnvSubst, e } = envSubst(buildArgExpression)
+                uniqueStringArray(Object.keys(buildArgsFinal)).forEach(argname => {
+                    const argExpr = `${buildArgsFinal[argname]}`   
+                    const { evaluated: buildArgWithEnvSubst, e } = envSubst(argExpr)
                     if (e) {
-                        console.error(e)
-                        continue
+                        options.error(e.message)
+                        return
                     }
-                    cliArgs.push('--build-arg', buildArgWithEnvSubst)
-                }
+                    buildArgsInfoFinal[argname] = {
+                        expr: argExpr,
+                        value: buildArgWithEnvSubst
+                    }
+                    const finalExpr = `${argname}=${buildArgWithEnvSubst}`
+                    cliArgs.push('--build-arg', finalExpr)
+                })
             }; addBuildArgs()
 
+            const buildSecretsFinal: { [secretname: string]: { expr: string, value: string } } = {}
             const addSecrets = () => {
                 if (!compo.docker.secret || !Object.keys(compo.docker.secret).length) { return }
                 const secretIds = Object.keys(compo.docker.secret)
-                secretIds.forEach(id => cliArgs.push('--secret', `id=${id},src=${compo.docker.secret[id]}`))
+                secretIds.forEach(id => {
+                    const secretExpr = compo.docker.secret[id]
+                    const { evaluated: secretValue, e } = envSubst(secretExpr)
+                    if (e) {
+                        options.error(e.message)
+                        return
+                    }
+                    const secretAbsPath = pathlib.join(compo.dir, secretValue)
+                    cliArgs.push('--secret', `id=${id},src=${secretAbsPath}`)
+                    buildSecretsFinal[id] = {
+                        expr: secretExpr,
+                        value: secretValue
+                    }
+                })
             }; addSecrets()
 
             const addCacheOpts = async () => {
@@ -499,8 +519,17 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
             }
 
             echoLine(`${colors.green('STARTED')} '${compo.fullname}'`)
-            for (const argname of Object.keys(buildArgsFinal)) {
-                echoLine(`    ARG ${colors.cyan(argname)}='${buildArgsFinal[argname]}'`)
+            
+            for (const argName of Object.keys(buildArgsInfoFinal)) {
+                const argInfo = buildArgsInfoFinal[argName]
+                const argExtra = argInfo.expr !== argInfo.value ? ` ## (evaluated: '${argInfo.value}')` : ''
+                echoLine(`    ARG ${colors.cyan(argName)}='${argInfo.expr}'${argExtra}`)
+            }
+
+            for (const secretName of Object.keys(buildSecretsFinal)) {
+                const secretInfo = buildSecretsFinal[secretName]
+                const secretExtra = secretInfo.expr !== secretInfo.value ? ` ## (evaluated: '${secretInfo.value}')` : ''
+                echoLine(`    SECRET ${colors.cyan(secretName)}='${secretInfo.expr}'${secretExtra}`)
             }
 
             const stdoutReader = readline.createInterface({
@@ -1188,7 +1217,7 @@ function stringArray(input: string | string[] | null, passthruNull = false): str
 function envSubst(expr: string) {
     let e: Error = null
     if (e && expr.indexOf('$') === -1) {
-        return { expr, e: <null>null } as const
+        return { evaluated: expr, e: <null>null } as const
     }
     const replaceCountMax = 1000
     for (const envVar of Object.keys(process.env)) {
@@ -1211,9 +1240,9 @@ function envSubst(expr: string) {
         }
     }
     if (e) {
-        return { expr: '', e } as const
+        return { evaluated: '', e } as const
     } else {
-        return { expr, e: <null>null } as const
+        return { evaluated: expr, e: <null>null } as const
     }
 }
 
