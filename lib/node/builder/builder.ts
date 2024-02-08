@@ -277,8 +277,11 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
 
             const addStaticTargetErrors: FileError[] = []
             const addStaticTargets = () => {
-                if (!options.ci || !compo.docker?.publish_static ||
-                    !config.docker?.registry?.named || !Object.keys(config.docker?.registry?.named).length) {
+                if (!options.ci ||
+                    !compo.docker?.publish_static ||
+                    !config.docker?.registry?.named ||
+                    !Object.keys(config.docker?.registry?.named).length
+                ) {
                     return
                 }
                 const otherNamedRegistries = config.docker?.registry?.named
@@ -296,7 +299,7 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                             continue
                         }
                         let { repo, tag, precommit } = otherPublishTargets[registryName]
-                        if (precommit && config.is_postcommit) {
+                        if (!precommit && config.is_precommit) {
                             continue
                         }
                         if (tag === null || tag === undefined) { continue }
