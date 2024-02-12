@@ -1,10 +1,27 @@
 import { Command } from 'commander';
-import { getDependencyErrors, getComponentsMap, orderBuildsInGroups, calculateComponentHashes, findBuilderConfig, buildAllGroups, getActiveBuilderConfig, resolveBuildEnvironment, BuilderCustomOptions, runCommand, matchFiles, setFileContent, killLogTail, existingPath, nohupDisown, getFileContent } from './builder';
 import { globalRoot } from 'ts-basis';
 import { spawn } from 'child_process'
 import * as crypto from 'crypto';
 import * as fs from 'fs'
 import { v4 as uuidv4 } from 'uuid'
+import {
+    getDependencyErrors,
+    getComponentsMap,
+    orderBuildsInGroups,
+    calculateComponentHashes,
+    findBuilderConfig,
+    buildAllGroups,
+    getActiveBuilderConfig,
+    resolveBuildEnvironment,
+    BuilderCustomOptions,
+    runCommand,
+    matchFiles,
+    setFileContent,
+    killLogTail,
+    nohupDisown,
+    getFileContent,
+    calculateGlobHash
+} from './builder';
 import packageJSON from '../package.json'
 const colors = require('colors/safe')
 
@@ -105,7 +122,8 @@ cli.command('build')
     exit(0)
 });
 
-const diff = cli.command('diff').description('lib for utils regarding changed files');
+const diff = cli.command('diff')
+    .description('lib for utils regarding changed files');
 
 diff.command('show')
 .option('--count', 'return the number of changed files instead of showing the list')
@@ -121,9 +139,10 @@ diff.command('show')
 
 diff.command('match')
 .option('--exclude <exclude>', 'glob pattern to exclude', arrayType, [])
+.option('--working-directory <workingDirectory>', 'change directory to specified dir for the command')
 .option('--count', 'return the number of matched files instead of showing the list')
 .argument('<patterns...>', 'glob pattern to match the diff files with')
-.action(async (patterns: string[], options: { exclude: string[], count: boolean }) => {
+.action(async (patterns: string[], options: { exclude: string[], count: boolean, workingDirectory?: string }) => {
     const [code, stdout, stderr, e] = await runCommand(`git diff --name-only -r HEAD^1 HEAD`)
     const files = (code === 0) ? stdout.split('\n').filter(a => a.trim()) : []
     const matchedFiles = await matchFiles(files, patterns, options.exclude)
@@ -134,7 +153,31 @@ diff.command('match')
     }
 });
 
-const picker = cli.command('pick').description('lib for utils regarding choosing numbers within given ranges')
+
+const globhash = cli.command('globhash')
+.option('--exclude <exclude>', 'glob pattern to exclude', arrayType, [])
+.option('--working-directory <workingDirectory>', 'change directory to specified dir for the command')
+.option('--context <context>', 'context regarding this hashing (used as front salt)')
+.option('--info', 'show information in stderr regarding the contributing files to the hash')
+.option('--short', 'get short hash (24-characters)')
+.argument('<patterns...>', 'glob pattern to match the diff files with')
+.action(async (patterns: string[], options: { context: string, exclude: string[], workingDirectory?: string, short: boolean, info: boolean}) => {
+    const context = options.context || 'builder hash calc'
+    const hash = await calculateGlobHash(context, patterns, options.exclude, options.workingDirectory)
+    if (options.info) {
+        console.error(hash.info.map(info => `${info.hash.slice(0, 24)} ${info.file}`).join('\n'))
+        console.error('')
+    }
+    if (options.short) {
+        console.log(hash.value.slice(0, 24))
+    } else {
+        console.log(hash.value)
+    }
+});
+
+
+const picker = cli.command('pick')
+    .description('lib for utils regarding choosing numbers within given ranges')
 
 picker.command('modulo')
 .argument('<modulo>', 'pool size for the pick')

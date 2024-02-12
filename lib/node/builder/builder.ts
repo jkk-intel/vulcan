@@ -6,15 +6,26 @@ import * as readline from 'readline'
 import * as os from 'os'
 import { ExecOptions, SpawnOptions, exec, spawn } from 'child_process'
 import { promise } from 'ts-basis'
-import { BuilderConfig, BuilderConfigChain, ComponentBuildStatus, ComponentManifest, ComponentManifestMap, OtherNamedPublishMap, TypedBuilderConfig, componentStatusContinuable, componentStatusFinal, componentStatusFlowStop, componentStatusPending } from './model'
+import {
+    BuilderConfig,
+    BuilderConfigChain,
+    ComponentBuildStatus,
+    ComponentManifest,
+    ComponentManifestMap,
+    OtherNamedPublishMap,
+    TypedBuilderConfig,
+    componentStatusFlowStop,
+    componentStatusPending
+} from './model'
 import { v4 as uuidv4 } from 'uuid'
 const fg = require('fast-glob')
 const colors = require('colors/safe')
 
 const defaultExcludes = [
-    '**/.DS_Store',
-    '**/node_modules',
-    '**/generated-sources',
+    '.DS_Store',
+    'node_modules',
+    'generated-sources',
+    '*.log',
 ]
 type FileError = {file: any; e: Error; data?: any; isWarning?: boolean; };
 type GlobResult<T = string[]> = [T, FileError[]]
@@ -365,11 +376,7 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                 Object.assign(buildArgsFinal, buildArgsOverride)
                 uniqueStringArray(Object.keys(buildArgsFinal)).forEach(argname => {
                     const argExpr = `${buildArgsFinal[argname]}`   
-                    const { evaluated: buildArgWithEnvSubst, e } = envSubst(argExpr)
-                    if (e) {
-                        options.error(e.message)
-                        return
-                    }
+                    const buildArgWithEnvSubst = envSubst(argExpr)
                     buildArgsInfoFinal[argname] = {
                         expr: argExpr,
                         value: buildArgWithEnvSubst
@@ -385,11 +392,7 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
                 const secretIds = Object.keys(compo.docker.secret)
                 secretIds.forEach(id => {
                     const secretExpr = compo.docker.secret[id]
-                    const { evaluated: secretValue, e } = envSubst(secretExpr)
-                    if (e) {
-                        options.error(e.message)
-                        return
-                    }
+                    const secretValue = envSubst(secretExpr)
                     const secretAbsPath = pathlib.join(compo.dir, secretValue)
                     cliArgs.push('--secret', `id=${id},src=${secretAbsPath}`)
                     buildSecretsFinal[id] = {
@@ -896,61 +899,8 @@ export async function calculateComponentHashes(options: BuilderCustomOptions, co
             const dockerfileAbspath = pathlib.join(compo.dir, dockerfile)
             validPaths.push(dockerfileAbspath)
         }
-        const statProms = validPaths.map(path => entityStat(path))
-        const dirProms: Promise<GlobResult>[] = []
-        const allFiles: string[] = []
-        const statResolved = await Promise.allSettled(statProms)
-        for (const gitObjectResult of statResolved) {
-            if (gitObjectResult.status !== 'fulfilled') {
-                allErrors.push({
-                    file: null,
-                    e: new Error(gitObjectResult.reason),
-                })
-                continue
-            }
-            if (!gitObjectResult.value) {
-                continue
-            }
-            const [ path, pathStat ] = gitObjectResult.value
-            if (!pathStat) {
-                allErrors.push({
-                    file: null,
-                    e: new Error(`src path '${path}' not found for '${compo.name}' at ${compo.manifest_path}`),
-                })
-                continue
-            } else if (pathStat.isDirectory()) {
-                const errors: FileError[] = []
-                dirProms.push(getGlobMatched(options, compo.dir, [`${path}/**/*`], compo.ignore, errors))
-            } else {
-                allFiles.push(path)
-            }
-        }
-        const dirsSettled = await Promise.allSettled(dirProms)
-        for (const dirSettle of dirsSettled) {
-            if (dirSettle.status !== 'fulfilled') {
-                allErrors.push({
-                    file: null,
-                    e: new Error(dirSettle.reason),
-                })
-                continue
-            }
-            const [ paths, errors ] = dirSettle.value
-            if (errors) {
-                for (const e of errors) {
-                    allErrors.push(e)
-                }
-            }
-            allFiles.push(...paths)
-        }
-        const allUniqueFiles = uniqueStringArray(allFiles).sort((a, b) => a.localeCompare(b))
-        const settledSha = await Promise.allSettled(allUniqueFiles.map(file => shasumFile(file)))
-        const fileShasums: string[] = []
-        settledSha.forEach(shaResult => {
-            if (shaResult.status === 'fulfilled') {
-                const [ file, shasum ] = shaResult.value
-                fileShasums.push(shasum)
-            }
-        })
+        const calcContext = `for '${compo.name}' at ${compo.manifest_path}`
+        const fileShasumData = await calculatePathHashes(validPaths, compo.ignore, compo.dir, options, allErrors, calcContext)
         const dependsOnShasums: string[] = []
         compo.depends_on?.forEach(parentComponentName => {
             const parentCompo: ComponentManifest = findParentComponentByName(parentComponentName, compoMap)
@@ -962,18 +912,30 @@ export async function calculateComponentHashes(options: BuilderCustomOptions, co
             const buildArgNames = Object.keys(compo.docker?.build_args).sort((a, b) => a.localeCompare(b))
             buildArgNames.forEach(buildArgName => {
                 if (predefinedArgsSkip.indexOf(buildArgName.toUpperCase()) >= 0) { return }
-                componentVariantShasums.push(`arg; docker --build-arg ${buildArgName}=${compo.docker?.build_args[buildArgName]}`)
+                const argExpr = compo.docker?.build_args[buildArgName] ?? ''
+                const argValue = envSubst(argExpr)
+                const valurOrExpr = argValue === argExpr ? argExpr : `${argExpr} ## evaluated: '${argValue}'`
+                componentVariantShasums.push(`arg; docker --build-arg ${buildArgName}=${valurOrExpr}`)
+            })
+        }
+        if (compo.docker?.secret && Object.keys(compo.docker?.secret).length) {
+            const secretNames = Object.keys(compo.docker?.secret).sort((a, b) => a.localeCompare(b))
+            secretNames.forEach(secretName => {
+                const secretExpr = compo.docker?.secret[secretName] ?? ''
+                const secretValue = envSubst(secretExpr)
+                const valurOrExpr = secretValue === secretExpr ? secretExpr : `${secretExpr} ## evaluated: '${secretValue}'`
+                componentVariantShasums.push(`secret; docker --secret ${secretName}=${valurOrExpr}`)
             })
         }
         const affectedBy = [
             ...dependsOnShasums,
             ...componentVariantShasums,
-            ...allUniqueFiles.map((file, i) => `file; ${pathlib.relative(compo.dir, file)} @${fileShasums[i]}`),
+            ...fileShasumData.map(data => `file; ${data.file} @${data.hash}`),
         ]
         const totalSha = shasumStringArray(compo.fullname, [
             ...dependsOnShasums,
             ...componentVariantShasums,
-            ...fileShasums,
+            ...fileShasumData.map(data => data.hash),
         ])
         compo.affected_by = affectedBy
         compo.hash_long = totalSha
@@ -983,6 +945,88 @@ export async function calculateComponentHashes(options: BuilderCustomOptions, co
         return allErrors
     }
     return null
+}
+
+export async function calculateGlobHash(context: string, patterns: string[], excludes?: string[], workingDirectory?: string) {
+    const allErrors: FileError[] = []
+    const excludesSafe = excludes ?? []
+    const [ paths ] = await getGlobMatched(null, workingDirectory, patterns, excludesSafe, allErrors)
+    const hashInfo = await calculatePathHashes(paths, excludesSafe, workingDirectory, null, allErrors)
+    const totalSha = shasumStringArray(context, hashInfo.map(data => data.hash))
+    return {
+        value: totalSha,
+        info: hashInfo,
+    }
+}
+
+async function calculatePathHashes(
+    paths: string[],
+    excludes?: string[],
+    workingDirectory?: string,
+    options?: BuilderCustomOptions,
+    allErrors?: FileError[],
+    context?: string
+) {
+    workingDirectory = workingDirectory ?? ''
+    const statProms = paths.map(path => entityStat(path))
+    const dirProms: Promise<GlobResult>[] = []
+    const allFiles: string[] = []
+    const statResolved = await Promise.allSettled(statProms)
+    for (const gitObjectResult of statResolved) {
+        if (gitObjectResult.status !== 'fulfilled') {
+            allErrors.push({
+                file: null,
+                e: new Error(gitObjectResult.reason),
+            })
+            continue
+        }
+        if (!gitObjectResult.value) {
+            continue
+        }
+        const [ path, pathStat ] = gitObjectResult.value
+        if (!pathStat) {
+            allErrors.push({
+                file: null,
+                e: new Error(`src path '${path}' not found ${context ?? ''}`),
+            })
+            continue
+        } else if (pathStat.isDirectory()) {
+            const errors: FileError[] = []
+            dirProms.push(getGlobMatched(options, workingDirectory, [`${path}/**/*`], excludes, errors))
+        } else {
+            allFiles.push(path)
+        }
+    }
+    const dirsSettled = await Promise.allSettled(dirProms)
+    for (const dirSettle of dirsSettled) {
+        if (dirSettle.status !== 'fulfilled') {
+            allErrors.push({
+                file: null,
+                e: new Error(dirSettle.reason),
+            })
+            continue
+        }
+        const [ paths, errors ] = dirSettle.value
+        if (errors) {
+            for (const e of errors) {
+                allErrors.push(e)
+            }
+        }
+        allFiles.push(...paths)
+    }
+    const allUniqueFiles = uniqueStringArray(allFiles).sort((a, b) => a.localeCompare(b))
+    const settledSha = await Promise.allSettled(allUniqueFiles.map(file => shasumFile(file)))
+    const fileShasums: string[] = []
+    settledSha.forEach(shaResult => {
+        if (shaResult.status === 'fulfilled') {
+            const [ file, shasum ] = shaResult.value
+            fileShasums.push(shasum)
+        }
+    })
+    return allUniqueFiles.map((file, i) => ({
+        file: pathlib.relative(workingDirectory, file),
+        hash: fileShasums[i],
+    }))
 }
 
 function getGlobMatched(
@@ -1001,10 +1045,11 @@ function getGlobMatched(
         if (!globexprs) {
             return resolve([[], errors])
         }
+        workingDirectory = workingDirectory ?? ''
         const globOnly = globexprs.filter(expr => expr.indexOf('*') >= 0)
         const rawPaths = globexprs.filter(expr => expr.indexOf('*') === -1).map(path => abspath(workingDirectory, path))
         const existingRawPathsPromise = filterExistingPaths(workingDirectory, rawPaths, errors)
-        const excludes = uniqueStringArray(defaultExcludes, ignore).map(ig => !ig.startsWith('!') ? `!${ig}` : ig)
+        const excludes = excludesFilter(ignore)
         const globMatchProms = globOnly.map(globexpr => globWithExcludes(workingDirectory, globexpr, excludes))
         const globSettleds = await Promise.allSettled(globMatchProms)
         const files: string[] = []
@@ -1021,7 +1066,7 @@ function getGlobMatched(
                 files.push(...uniqueList)
             }
             if (paths?.length === 0 && emptyMatchWarningContext) {
-                options.log(colors.yellow(`WARNING; '${globexpr}' did not match any file while ${emptyMatchWarningContext}`))
+                options?.log(colors.yellow(`WARNING; '${globexpr}' did not match any file while ${emptyMatchWarningContext}`))
             }
         }
         if (errors.length) {
@@ -1042,10 +1087,18 @@ function getGlobMatched(
     })
 }
 
+function excludesFilter(excludes: string[]) {
+    if (!excludes || excludes.length === 0) {
+        return []
+    }
+    const excludesFiltered = uniqueStringArray(defaultExcludes, excludes)
+                            .map(excl => !excl.startsWith('./') && excl.indexOf('**') === -1 ? `**/${excl}` : excl)
+    return excludesFiltered
+}
+
 function globWithExcludes(workingDirectory: string, globexpr: string, excludes: string[]) {
-    const globExprsFinal = [globexpr, ...excludes];
     return promise<[string, string[], Error]>(resolve => {
-        fg(globExprsFinal, { dot: true, cwd: workingDirectory }).then(async (files: string[]) => {
+        fg(globexpr, { dot: true, cwd: workingDirectory, ignore: excludes, globstar: true }).then(async (files: string[]) => {
             return resolve([globexpr, files, null]);
         }).catch(e => {
             return resolve([globexpr, null, e]);
@@ -1115,7 +1168,7 @@ function shasumFile(file: string) {
     })
 }
 
-function shasumStringArray(context: string, arr: string[]) {
+export function shasumStringArray(context: string, arr: string[]) {
     const hash = crypto.createHash('sha512')
     hash.setEncoding('binary')
     hash.update(Buffer.from(`sha512-truncated-to-32-byte; context=${context}`, 'ascii')) // salting
@@ -1220,7 +1273,7 @@ function stringArray(input: string | string[] | null, passthruNull = false): str
 function envSubst(expr: string) {
     let e: Error = null
     if (e && expr.indexOf('$') === -1) {
-        return { evaluated: expr, e: <null>null } as const
+        return expr
     }
     const replaceCountMax = 1000
     for (const envVar of Object.keys(process.env)) {
@@ -1237,16 +1290,10 @@ function envSubst(expr: string) {
             ++replaceCount
         }
         if (replaceCount >= replaceCountMax) {
-            e = new Error(`ERROR; max replace count ${replaceCountMax} reached ` +
-                          `while substituting '${envVar}' value of '${envVal}'`)
             break
         }
     }
-    if (e) {
-        return { evaluated: '', e } as const
-    } else {
-        return { evaluated: expr, e: <null>null } as const
-    }
+    return expr
 }
 
 function getVariantTag(compo: ComponentManifest, tag: string) {
@@ -1420,7 +1467,7 @@ export function getTempDir() {
 }
 
 export async function matchFiles(files: string[], patterns: string[], excludes: string[]) {
-    excludes = uniqueStringArray(excludes.concat(defaultExcludes).map(a => a.startsWith('!') ? a : `!${a}`))
+    excludes = excludesFilter(excludes)
     const prevCwd = process.cwd()
     const tempDir = await getTempDir()
     const touchFile = (file: string) => {
