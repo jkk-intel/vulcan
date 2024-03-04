@@ -57,3 +57,11 @@ REQUIRED_BUILDER_VERSION='0.0.57'
     fi
 } >/dev/null 2>&1
 echo "BUILDER_VERSION=$REQUIRED_BUILDER_VERSION"
+
+if ! [ -x "$(command -v expect)" ]; then
+    sudo apt-get install -y expect
+fi
+
+if ! [ -x "$(command -v dig)" ]; then
+    sudo apt-get install -y dnsutils
+fi
