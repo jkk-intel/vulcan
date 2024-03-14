@@ -65,3 +65,6 @@ fi
 if ! [ -x "$(command -v dig)" ]; then
     sudo apt-get install -y dnsutils
 fi
+
+# Remove user's global git auth header that could collide with actions/checkout
+git config --global --unset 'http.https://github.com/.extraheader' || true
