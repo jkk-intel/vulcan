@@ -186,10 +186,14 @@ async function tryBuildComponentAndDownstream(
 
 function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManifestMap, compo: ComponentManifest, configChain: BuilderConfigChain, errors?: FileError[]) {
     if (!errors) { errors = []; }
-    const { tag } = options
     const config = getActiveBuilderConfig(configChain)
     if (compo.builder === 'docker') {
         return promise<ComponentBuildStatus>(async resolve => {
+            if (compo._process.build_lock) { // you build component only once
+                resolve(compo.status)
+                return
+            }
+            compo._process.build_lock = uuidv4()
             const startTime = Date.now()
             const streamFile = `build.${compo.name_safe}.log`
             const publishedLogFile = `build.all.published.log`
@@ -491,7 +495,6 @@ async function buildPrepComponent(
 ) {
     if (!errors) { errors = []; }
     const config = getActiveBuilderConfig(configChain)
-    compo.status = 'waiting'
     if (!compo._process) {
         compo._process = {}
     }

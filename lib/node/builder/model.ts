@@ -56,6 +56,7 @@ export interface ComponentManifest {
     prebuild_script?: string
     postbuild_script?: string
     _process?: {
+        build_lock?: string
         prebuilt_status?: 'handled' | 'cache-miss'
         outputs?: {
             docker_images?: string[]
