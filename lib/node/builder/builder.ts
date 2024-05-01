@@ -30,8 +30,8 @@ const defaultExcludes = [
 type FileError = {file: any; e: Error; data?: any; isWarning?: boolean; };
 type GlobResult<T = string[]> = [T, FileError[]]
 const currentBuilds: {[componentFullName: string]: boolean} = {}
+
 let currentOutputOwner = ''
-let lastUsedBuilderIndex = -1
 const rectifyOutputSection = (compoFullName: string, options: BuilderCustomOptions) => {
     if (currentOutputOwner !== compoFullName) {
         currentOutputOwner = compoFullName
@@ -80,7 +80,12 @@ export async function nohupDisown(args: string[]) {
     await runCommand(`nohup ${args.map(a => `'${a}'`).join(' ')} >/dev/null 2>&1 &disown`)
 }
 
-export async function buildAllGroups(options: BuilderCustomOptions, compoMap: ComponentManifestMap, buildGroups: ComponentManifest[][], configChain?: BuilderConfigChain) {
+export async function buildAllGroups(
+    options: BuilderCustomOptions,
+    compoMap: ComponentManifestMap,
+    buildGroups: ComponentManifest[][],
+    configChain?: BuilderConfigChain
+) {
     if (!configChain) {
         configChain = await findBuilderConfig()
     }
@@ -145,7 +150,13 @@ export async function buildAllGroups(options: BuilderCustomOptions, compoMap: Co
     return end()
 }
 
-async function tryBuildComponentAndDownstream(options: BuilderCustomOptions, compoMap: ComponentManifestMap, compo: ComponentManifest, configChain: BuilderConfigChain, errors?: FileError[]) {
+async function tryBuildComponentAndDownstream(
+    options: BuilderCustomOptions,
+    compoMap: ComponentManifestMap,
+    compo: ComponentManifest,
+    configChain: BuilderConfigChain,
+    errors?: FileError[]
+) {
     if (!componentStatusPending(compo.status)) {
         return
     }
@@ -216,153 +227,53 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
             )
             if (options.pull && !compo.docker?.no_pull) { cliArgs.push('--pull'); }
             if (!options.cache || compo.no_cache) { cliArgs.push('--no-cache'); }
-            const allFullImagePaths: string[] = []
 
             const dockerfile = compo.docker?.dockerfile ?? 'Dockerfile'
             const dockerfileAbspath = pathlib.join(compo.dir, dockerfile)
             cliArgs.push('--file', dockerfileAbspath)
 
-            if (compo.docker.target) { cliArgs.push('--target', compo.docker.target) }
-
-            const ephemeralImageHashedTag = getEphemeralComponentFullpath(compo, config)
-            const ephemeralImageCustomTag = getEphemeralComponentFullpath(compo, config, tag)
-
-            let chosenBuilder: string = ''
-            if (
-                config.docker?.task_assign?.type === 'builder-pool' &&
-                stringArray(config.docker?.task_assign?.builder_pool).length
-            ) {
-                const pool = stringArray(config.docker?.task_assign?.builder_pool)
-                if (config.docker?.task_assign?.strategy === 'roundrobin') {
-                    ++lastUsedBuilderIndex; lastUsedBuilderIndex %= pool.length;
-                    chosenBuilder = pool[lastUsedBuilderIndex]
-                } else if (config.docker?.task_assign?.strategy === 'random') {
-                    lastUsedBuilderIndex = Math.floor(Math.random() * pool.length)
-                    chosenBuilder = pool[lastUsedBuilderIndex]
-                }
-                if (chosenBuilder) {
-                    cliArgs.push('--builder', chosenBuilder)
-                }
+            if (compo.docker.target) {
+                cliArgs.push('--target', compo.docker.target)
             }
 
-            cliArgs.push('--tag', ephemeralImageHashedTag)
-            cliArgs.push('--tag', ephemeralImageCustomTag)
-            allFullImagePaths.push(ephemeralImageHashedTag, ephemeralImageCustomTag)
-
-            const shouldPublish = (flag: boolean | "ci-only") => flag === true || (flag === 'ci-only' && options.ci)
-
-            if (
-                compo.publish &&
-                config.is_precommit &&
-                shouldPublish(config.docker?.registry?.published?.precommit?.publish) &&
-                stringArray(config.docker?.registry?.published?.precommit?.target).length
-            ) {
-                const publishPaths = getPrecommitComponentPublishPaths(compo, config)
-                for (const publishPath of publishPaths) {
-                    const fullPath = `${publishPath}:${getVariantTag(compo, tag)}`
-                    cliArgs.push('--tag', fullPath)
-                    allFullImagePaths.push(fullPath)
-                }
+            const chosenBuilder = await chooseBuilder(config)
+            if (chosenBuilder) {
+                cliArgs.push('--builder', chosenBuilder)
             }
 
-            if (
-                compo.publish &&
-                config.is_postcommit &&
-                shouldPublish(config.docker?.registry?.published?.postcommit?.publish) &&
-                stringArray(config.docker?.registry?.published?.postcommit?.target).length
-            ) {
-                const publishPaths = getPostcommitComponentPublishPaths(compo, config)
-                for (const publishPath of publishPaths) {
-                    const fullPath = `${publishPath}:${getVariantTag(compo, tag)}`
-                    cliArgs.push('--tag', fullPath)
-                    allFullImagePaths.push(fullPath)
-                }
-                if (shouldPublish(config.docker?.registry?.published?.postcommit?.publish_latest)) {
-                    for (const publishPath of publishPaths) {
-                        const fullPath = `${publishPath}:latest`
-                        cliArgs.push('--tag', fullPath)
-                        allFullImagePaths.push(fullPath)
-                    }
-                }
-            }
+            const {
+                allFullImagePaths,
+                targetErrors
+            } = getPublishTargets(compo, config, options)
 
-            const addStaticTargetErrors: FileError[] = []
-            const addStaticTargets = () => {
-                if (!options.ci ||
-                    !compo.docker?.publish_static ||
-                    !config.docker?.registry?.named ||
-                    !Object.keys(config.docker?.registry?.named).length
-                ) {
-                    return
-                }
-                const otherNamedRegistries = config.docker?.registry?.named
-                const staticTargetAdd = (otherPublishTargets: OtherNamedPublishMap) => {
-                    const regNames = Object.keys(otherPublishTargets)
-                    for (const registryName of regNames) {
-                        let registry = otherNamedRegistries[registryName]
-                        if (!registry) {
-                            addStaticTargetErrors.push({
-                                file: dockerfileAbspath,
-                                e: new Error(`ERROR; registry '${registryName}' does not exist as a registered entry on `+
-                                             `builder.config.yml:(docker.registry.named) while parsing the component ` +
-                                             `manifest at ${compo.manifest_path}:(docker.publish_static.'${registryName}')`)
-                            })
-                            continue
-                        }
-                        let { repo, tag, precommit } = otherPublishTargets[registryName]
-                        if (!precommit && config.is_precommit) {
-                            continue
-                        }
-                        if (tag === null || tag === undefined) { continue }
-                        while (registry && registry.endsWith('/')) { registry = registry.slice(0, -1) }
-                        while (repo && repo.endsWith('/')) { registry = registry.slice(0, -1) }
-                        while (repo && repo.startsWith('/')) { registry = registry.slice(1) }
-                        const fullPath = `${registry}/${repo ? repo : compo.docker.image_name}:${getVariantTag(compo, tag)}`
-                        cliArgs.push('--tag', fullPath)
-                        allFullImagePaths.push(fullPath)
-                    }    
-                }
-                if (compo.docker.publish_static && Object.keys(compo.docker.publish_static).length) {
-                    staticTargetAdd(compo.docker.publish_static)
-                }
-            }; addStaticTargets()
+            allFullImagePaths.forEach(tag => cliArgs.push('--tag', tag))
 
-            if (addStaticTargetErrors.length) {
-                errors.push(...addStaticTargetErrors)
-                options.error(addStaticTargetErrors[0].e + '')
+            if (targetErrors.length) {
+                const targetFileErrors: FileError[] = targetErrors.map(err => ({file: dockerfileAbspath, e: err }))
+                errors.push(...targetFileErrors)
+                options.error(targetFileErrors[0].e + '')
                 return tryResolve('failure')
             }
 
             const pushedPaths = allFullImagePaths.map(img => `    ${colors.green(img)}`).join('\n')
             const announcePushes = () => {
-                if (!compo.outputs) { compo.outputs = {} }
-                compo.outputs.docker_images = copy(allFullImagePaths)
+                compo._process.outputs.docker_images = copy(allFullImagePaths)
                 appendFileContent(publishedLogFile, allFullImagePaths.join('\n') + '\n')
                 rectifyOutputSection(compo.fullname, options)
                 options.log(`Successfully published ${colors.cyan(compo.fullname)} to:\n${pushedPaths}\n`)
             }
 
             // Check prebuilt
-            if (options.prebuilt && !compo.no_prebuilt) {
-                const tmpfile = `${await getTempDir()}/${compo.fullname.replace(/\//g, '_')}.Dockerfile`
-                await setFileContent(tmpfile, `FROM ${ephemeralImageHashedTag}`)
-                let checkerCmd = `docker buildx build `
-                checkerCmd += chosenBuilder ? ` --builder '${chosenBuilder}' ` : ''
-                checkerCmd += allFullImagePaths.map(img => ` --tag '${img}'`).join(' ')
-                checkerCmd += ` --pull --push -f '${tmpfile}' . `
-                const [ prebuiltResult ] = await runCommand(checkerCmd)
-                fs.unlink(tmpfile, () => {})
-                const prebuiltExists = prebuiltResult === 0
-                if (prebuiltExists) {
-                    rectifyOutputSection(compo.fullname, options)
-                    const skipMessage = `${colors.yellow(`[PREBUILT]`)} `+
-                                        `${colors.cyan(compo.fullname)}${colors.gray('@'+compo.hash.slice(1))}` +
-                                        ` has been published before, skipping building.`;
-                    options.log(skipMessage)
-                    announcePushes()
-                    logFile.write(`${skipMessage}\n\nSKIPPED\n(REDUNDANT; PREBUILT EXISTS)\n`)
-                    return tryResolve('redundant')
-                }
+            if (compo._process?.prebuilt_status === 'handled') {
+                rectifyOutputSection(compo.fullname, options)
+                const skipMessage = `${colors.yellow(`[PREBUILT]`)} `+
+                                    `${colors.cyan(compo.fullname)}${colors.gray('@'+compo.hash.slice(1))}` +
+                                    ` has been published before, skipping building.`
+                options.log(skipMessage)
+                announcePushes()
+                const retaggedTargets = `Retagged targets: \n${allFullImagePaths.map(a => `    ${a}`).join('\n')}`
+                logFile.write(`${skipMessage}\n${retaggedTargets}\nSKIPPED\n(REDUNDANT; PREBUILT EXISTS)\n\n`)
+                return tryResolve('redundant')
             }
 
             const buildArgsFinal: { [argname: string]: string; } = {}
@@ -571,9 +482,22 @@ function buildComponent(options: BuilderCustomOptions, compoMap: ComponentManife
     }
 }
 
-async function buildPrepComponent(options: BuilderCustomOptions, compoMap: ComponentManifestMap, compo: ComponentManifest, configChain: BuilderConfigChain, errors: FileError[]) {
+async function buildPrepComponent(
+    options: BuilderCustomOptions,
+    compoMap: ComponentManifestMap,
+    compo: ComponentManifest,
+    configChain: BuilderConfigChain,
+    errors: FileError[]
+) {
     if (!errors) { errors = []; }
     const config = getActiveBuilderConfig(configChain)
+    compo.status = 'waiting'
+    if (!compo._process) {
+        compo._process = {}
+    }
+    if (!compo._process.outputs) {
+        compo._process.outputs = {}
+    }
     if (compo.builder === 'docker') {
         const dockerfile = compo.docker?.dockerfile ?? 'Dockerfile'
         const dockerfileAbspath = pathlib.join(compo.dir, dockerfile)
@@ -659,6 +583,20 @@ async function buildPrepComponent(options: BuilderCustomOptions, compoMap: Compo
         })
         return
     }
+    // check prebuilts
+    if (options.prebuilt && !compo.no_prebuilt) {
+        const { allFullImagePaths } = getPublishTargets(compo, config, options)
+        const hasPrebuilts = await handlePrebuilts(allFullImagePaths, compo, config, options)
+        if (hasPrebuilts) {
+            compo._process.prebuilt_status = 'handled'
+        } else {
+            compo._process.prebuilt_status = 'cache-miss'
+        }
+    }
+    // reattach at the end
+    const _process = compo._process
+    delete compo._process
+    compo._process = _process
 }
 
 export async function getComponentsMap(options: BuilderCustomOptions): Promise<GlobResult<ComponentManifestMap>> {
@@ -668,14 +606,12 @@ export async function getComponentsMap(options: BuilderCustomOptions): Promise<G
     const manifestPatterns = [
         `./**/*.component.yml`,
         `./**/*.component.yaml`,
-        `./**/*.compo.yml`,
-        `./**/*.compo.yaml`,
         `./**/component.*.yml`,
         `./**/component.*.yaml`,
-        `./**/compo.*.yml`,
-        `./**/compo.*.yaml`,
-        `./**/*.builder.yml`,
-        `./**/*.builder.yaml`,
+        `./**/*.build.yml`,
+        `./**/*.build.yaml`,
+        `./**/*.test.yml`,
+        `./**/*.test.yaml`,
     ]
     await getGlobMatched(options, options.workingDirectory ?? './', manifestPatterns, [], errors, async (file) => {
         try {
@@ -1027,6 +963,130 @@ async function calculatePathHashes(
         file: pathlib.relative(workingDirectory, file),
         hash: fileShasums[i],
     }))
+}
+
+function getPublishTargets(compo: ComponentManifest, config: TypedBuilderConfig, options: BuilderCustomOptions) {
+    const { tag } = options
+    const allFullImagePaths: string[] = []
+    const ephemeralImageHashedTag = getEphemeralComponentFullpath(compo, config)
+    const ephemeralImageCustomTag = getEphemeralComponentFullpath(compo, config, tag)
+
+    allFullImagePaths.push(ephemeralImageHashedTag, ephemeralImageCustomTag)
+
+    const shouldPublish = (flag: boolean | "ci-only") => flag === true || (flag === 'ci-only' && options.ci)
+
+    if (
+        compo.publish &&
+        config.is_precommit &&
+        shouldPublish(config.docker?.registry?.published?.precommit?.publish) &&
+        stringArray(config.docker?.registry?.published?.precommit?.target).length
+    ) {
+        const publishPaths = getPrecommitComponentPublishPaths(compo, config)
+        for (const publishPath of publishPaths) {
+            const fullPath = `${publishPath}:${getVariantTag(compo, tag)}`
+            allFullImagePaths.push(fullPath)
+        }
+    }
+
+    if (
+        compo.publish &&
+        config.is_postcommit &&
+        shouldPublish(config.docker?.registry?.published?.postcommit?.publish) &&
+        stringArray(config.docker?.registry?.published?.postcommit?.target).length
+    ) {
+        const publishPaths = getPostcommitComponentPublishPaths(compo, config)
+        for (const publishPath of publishPaths) {
+            const fullPath = `${publishPath}:${getVariantTag(compo, tag)}`
+            allFullImagePaths.push(fullPath)
+        }
+        if (shouldPublish(config.docker?.registry?.published?.postcommit?.publish_latest)) {
+            for (const publishPath of publishPaths) {
+                const fullPath = `${publishPath}:latest`
+                allFullImagePaths.push(fullPath)
+            }
+        }
+    }
+
+    const addStaticTargetErrors: Error[] = []
+    const addStaticTargets = () => {
+        if (!options.ci ||
+            !compo.docker?.publish_static ||
+            !config.docker?.registry?.named ||
+            !Object.keys(config.docker?.registry?.named).length
+        ) {
+            return
+        }
+        const otherNamedRegistries = config.docker?.registry?.named
+        const staticTargetAdd = (otherPublishTargets: OtherNamedPublishMap) => {
+            const regNames = Object.keys(otherPublishTargets)
+            for (const registryName of regNames) {
+                let registry = otherNamedRegistries[registryName]
+                if (!registry) {
+                    addStaticTargetErrors.push(
+                        new Error(`ERROR; registry '${registryName}' does not exist as a registered entry on `+
+                                        `builder.config.yml:(docker.registry.named) while parsing the component ` +
+                                        `manifest at ${compo.manifest_path}:(docker.publish_static.'${registryName}')`)
+                    )
+                    continue
+                }
+                let { repo, tag, precommit } = otherPublishTargets[registryName]
+                if (!precommit && config.is_precommit) {
+                    continue
+                }
+                if (tag === null || tag === undefined) { continue }
+                while (registry && registry.endsWith('/')) { registry = registry.slice(0, -1) }
+                while (repo && repo.endsWith('/')) { registry = registry.slice(0, -1) }
+                while (repo && repo.startsWith('/')) { registry = registry.slice(1) }
+                const fullPath = `${registry}/${repo ? repo : compo.docker.image_name}:${getVariantTag(compo, tag)}`
+                allFullImagePaths.push(fullPath)
+            }    
+        }
+        if (compo.docker.publish_static && Object.keys(compo.docker.publish_static).length) {
+            staticTargetAdd(compo.docker.publish_static)
+        }
+    }
+    addStaticTargets()
+
+    return {
+        allFullImagePaths,
+        ephemeralImageHashedTag,
+        ephemeralImageCustomTag,
+        targetErrors: addStaticTargetErrors
+    }
+}
+
+async function handlePrebuilts(allFullImagePaths: string[], compo: ComponentManifest, config: TypedBuilderConfig, options: BuilderCustomOptions) {
+    const ephemeralImageHashedTag = getEphemeralComponentFullpath(compo, config)
+    const chosenBuilder = await chooseBuilder(config)
+    const tmpfile = `${await getTempDir()}/${compo.fullname.replace(/\//g, '_')}.Dockerfile`
+    await setFileContent(tmpfile, `FROM ${ephemeralImageHashedTag}`)
+    let checkerCmd = `docker buildx build `
+    checkerCmd += chosenBuilder ? ` --builder '${chosenBuilder}' ` : ''
+    checkerCmd += allFullImagePaths.map(img => ` --tag '${img}'`).join(' ')
+    checkerCmd += ` --pull --push -f '${tmpfile}' . `
+    const [ prebuiltResult ] = await runCommand(checkerCmd)
+    fs.unlink(tmpfile, () => {})
+    const prebuiltExists = prebuiltResult === 0
+    return prebuiltExists
+}
+
+let lastUsedBuilderIndex = -1
+async function chooseBuilder(config: TypedBuilderConfig) {
+    let chosenBuilder: string = ''
+    if (
+        config.docker?.task_assign?.type === 'builder-pool' &&
+        stringArray(config.docker?.task_assign?.builder_pool).length
+    ) {
+        const pool = stringArray(config.docker?.task_assign?.builder_pool)
+        if (config.docker?.task_assign?.strategy === 'roundrobin') {
+            ++lastUsedBuilderIndex; lastUsedBuilderIndex %= pool.length;
+            chosenBuilder = pool[lastUsedBuilderIndex]
+        } else if (config.docker?.task_assign?.strategy === 'random') {
+            lastUsedBuilderIndex = Math.floor(Math.random() * pool.length)
+            chosenBuilder = pool[lastUsedBuilderIndex]
+        }
+    }
+    return chosenBuilder
 }
 
 function getGlobMatched(

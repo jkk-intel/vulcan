@@ -53,11 +53,14 @@ export interface ComponentManifest {
     shell?: {
         build_script?: string
     }
-    outputs?: {
-        docker_images?: string[] 
-    }
     prebuild_script?: string
     postbuild_script?: string
+    _process?: {
+        prebuilt_status?: 'handled' | 'cache-miss'
+        outputs?: {
+            docker_images?: string[]
+        }
+    } 
     _circular_dep_checker: ComponentManifest[];
 }
 
