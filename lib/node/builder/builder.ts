@@ -616,7 +616,7 @@ export async function getComponentsMap(options: BuilderCustomOptions): Promise<G
         `./**/*.test.yml`,
         `./**/*.test.yaml`,
     ]
-    await getGlobMatched(options, options.workingDirectory ?? './', manifestPatterns, [], errors, async (file) => {
+    await getGlobMatched(options, options.workingDirectory ?? './', manifestPatterns, defaultExcludes, errors, async (file) => {
         try {
             const { data } = await getFileContent(file, errors)
             const compo = yaml.load(data) as ComponentManifest
