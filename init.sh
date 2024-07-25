@@ -51,8 +51,9 @@ bash $SHARED_DIR/cicd/lib/shell/toolchain/github-cli/gh.sh
 BUILDER_CLI_PACKAGE="intel-build"
 REQUIRED_BUILDER_VERSION='0.0.60'
 {
-    use_nvm
+    export NVM_DIR="$SHARED_DIR/.nvm" ; [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh";
     if ! [ -x "$(command -v builder)" ] || [ "$(builder --version)" != "$REQUIRED_BUILDER_VERSION" ]; then
+        nvm install 18
         npm i -g $BUILDER_CLI_PACKAGE@$REQUIRED_BUILDER_VERSION
     fi
 } >/dev/null 2>&1
