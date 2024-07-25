@@ -31,8 +31,8 @@ cd "$SHARED_DIR"
 
 if [ -n "$GITHUB_WORKSPACE" ]; then
     shopt -s dotglob
-    sudo chown -R "$USER" "$GITHUB_WORKSPACE/"*
-    sudo rm -rf "$GITHUB_WORKSPACE/"*
+    sudo chown -R "$USER" "$GITHUB_WORKSPACE/"* || :
+    sudo rm -rf "$GITHUB_WORKSPACE/"* || :
     echo "cleaned up workspace ($GITHUB_WORKSPACE)"
 fi
 
