@@ -7,28 +7,6 @@ fi
 
 cd "$SHARED_DIR"
 
-{
-    if [ ! -f 'bashlib.sh' ]; then
-        curl -sL https://raw.github.com/jkk-intel/bashlib/main/bashlib.sh > bashlib.sh
-        chmod +x bashlib.sh
-    fi
-} >>"$INSTALL_DIR/bashlib_prep.log" 2>&1
-
-{
-    
-    if [ ! -d "cicd" ]; then
-        git clone https://github.com/jkk-intel/vulcan.git cicd
-    fi
-    
-    (
-        cd cicd
-        git fetch origin
-        git reset --hard origin/main
-        git pull
-    )
-
-} >>"$INSTALL_DIR/workflowlib.log" 2>&1
-
 if [ -n "$GITHUB_WORKSPACE" ]; then
     shopt -s dotglob
     sudo chown -R "$USER" "$GITHUB_WORKSPACE/"* || :
@@ -46,10 +24,8 @@ if [ "$(cat "$BASHRC_EXTRA_PATH" | grep BASHRC_EXTRA_VERSION || true)" \
     fi
 fi
 
-bash $SHARED_DIR/cicd/lib/shell/toolchain/github-cli/gh.sh
-
 BUILDER_CLI_PACKAGE="intel-build"
-REQUIRED_BUILDER_VERSION='0.0.60'
+REQUIRED_BUILDER_VERSION='0.0.64'
 {
     export NVM_DIR="$SHARED_DIR/.nvm" ; [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh";
     if ! [ -x "$(command -v builder)" ] || [ "$(builder --version)" != "$REQUIRED_BUILDER_VERSION" ]; then
@@ -58,14 +34,6 @@ REQUIRED_BUILDER_VERSION='0.0.60'
     fi
 } >/dev/null 2>&1
 echo "BUILDER_VERSION=$REQUIRED_BUILDER_VERSION"
-
-if ! [ -x "$(command -v expect)" ]; then
-    sudo apt-get install -y expect
-fi
-
-if ! [ -x "$(command -v dig)" ]; then
-    sudo apt-get install -y dnsutils
-fi
 
 # Remove user's global git auth header that could collide with actions/checkout
 git config --global --unset 'http.https://github.com/.extraheader' || true

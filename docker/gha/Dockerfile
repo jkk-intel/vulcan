@@ -5,7 +5,7 @@ ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
-
+  
 RUN echo en_US.UTF-8 UTF-8 >> /etc/locale.gen && \
     apt-get update && apt-get install -y \
       sudo gnupg gpg-agent locales lsb-release \
@@ -13,7 +13,7 @@ RUN echo en_US.UTF-8 UTF-8 >> /etc/locale.gen && \
       apt-transport-https ca-certificates openssh-client \
       software-properties-common build-essential \
       parallel rsync gettext dirmngr inetutils-ping \
-      dumb-init
+      expect dnsutils netcat dumb-init
 
 RUN apt-get install -y \
     golang-go \
@@ -32,16 +32,20 @@ RUN useradd -m builder && \
     wget https://raw.githubusercontent.com/gdraheim/docker-systemctl-replacement/master/files/docker/systemctl3.py -O /usr/bin/systemctl
 
 USER builder
+
+WORKDIR /
+COPY pre_workflow_script.sh \
+     post_workflow_script.sh \
+        ./
+
 WORKDIR /home/builder
-
-COPY ./install_runner.sh ./install_runner.sh
-COPY ./install_runner_additional.sh ./install_runner_additional.sh
-COPY ./.bashrc_extra ./.bashrc_extra
-
-COPY ./pre_workflow_script.sh /pre_workflow_script.sh
-COPY ./post_workflow_script.sh /post_workflow_script.sh
-
-COPY ./entrypoint.sh ./entrypoint.sh
+COPY .bashrc_extra \
+    install_runner.sh \
+    install_runner_additional.sh \
+    builder_update.sh \
+    entrypoint.sh \
+        ./
+        
 RUN sudo chmod +x ./entrypoint.sh
 
 ENTRYPOINT /home/builder/entrypoint.sh
