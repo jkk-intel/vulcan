@@ -95,12 +95,24 @@ async function installPythonVersion(options: CLIArgs) {
         return
     }
 
+    let installLogFileContent: string
     if (await pathExists(installLogFile)) {
-        return await waitForInstall()
+        installLogFileContent = await getContent(installLogFile)
+        if (!installLogFileContent) {
+            await bash(`rm -rf '${installLogFile}'`)
+        } else {
+            const t = parseInt(installLogFileContent.split('|')[1])
+            if (Date.now() - t > 180_000) {
+                await bash(`rm -rf '${installLogFile}'`)
+            } else {
+                return await waitForInstall()        
+            }
+        }
     }
 
-    await setContent(installLogFile, installId)
-    if ((await getContent(installLogFile)) !== installId) {
+    await setContent(installLogFile, `${installId}|${Date.now()}`)
+    installLogFileContent = await getContent(installLogFile)
+    if (!installLogFileContent?.startsWith(installId)) {
         return await waitForInstall()
     }
 

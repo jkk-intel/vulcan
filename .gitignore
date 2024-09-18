@@ -37,3 +37,4 @@ node_modules
 # GitHub Actions
 .github/**/package-lock.json
 .github/runtime
+.npmrc
